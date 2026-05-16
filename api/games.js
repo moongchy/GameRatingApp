@@ -6,26 +6,15 @@ module.exports = async (req, res) => {
     if (!RAWG_KEY) return res.status(500).json({ error: "RAWG_KEY missing" });
 
     try {
-        const now = new Date();
-        const twoYearsAgo = new Date();
-        twoYearsAgo.setFullYear(now.getFullYear() - 2); 
-        
-        const fromDate = twoYearsAgo.toISOString().split('T')[0];
-        const toDate = now.toISOString().split('T')[0];
-
-        // 🎯 변경점: 주소창의 tags 영역을 쉼표(,) 대신 기호(|)로 변경하여 'story-rich' 또는 'cinematic' 중 하나만 맞아도 가져오도록 완화!
-        const rawgUrl = `https://api.rawg.io/api/games?key=${RAWG_KEY}&dates=${fromDate},${toDate}&platforms=187,186,4&tags=story-rich|cinematic&ordering=-added&page_size=40`;
+        // 🎯 핵심 변경점: RAWG 메인의 'New and trending' 데이터를 긁어오는 전용 엔드포인트(/lists/main) 사용
+        // platforms=4,187,186 (PC, PS5, Xbox Series X/S 대작 체급 고정)
+        const rawgUrl = `https://api.rawg.io/api/games/lists/main?key=${RAWG_KEY}&ordering=-relevance&discover=true&platforms=4,187,186&page_size=30`;
         const rawgRes = await fetch(rawgUrl);
         const rawgData = await rawgRes.json();
 
-        // 🎯 변경점: 현실적인 대작/중견작 마지노선인 500명으로 커트라인 하향 조정
-        let aaaGames = (rawgData.results || []).filter(game => game.added && game.added >= 500);
+        const trendingGames = rawgData.results || [];
 
-        if (aaaGames.length < 5) {
-            aaaGames = (rawgData.results || []).slice(0, 20);
-        }
-
-        const updatedGames = await Promise.all(aaaGames.map(async (game) => {
+        const updatedGames = await Promise.all(trendingGames.map(async (game) => {
             game.tags = [];
             try {
                 const steamSearchUrl = `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(game.name)}&l=korean&cc=KR`;
@@ -58,7 +47,7 @@ module.exports = async (req, res) => {
             return game;
         }));
 
-        return res.status(200).json({ results: updatedGames.slice(0, 30) });
+        return res.status(200).json({ results: updatedGames });
     } catch (error) {
         return res.status(500).json({ error: error.message });
     }
