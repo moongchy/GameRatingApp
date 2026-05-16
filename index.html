@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GameRating LIVE - 2026</title>
+    <title>GameRating LIVE - AAA Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
@@ -11,17 +11,27 @@
 
     <header class="max-w-6xl mx-auto mb-12 text-center">
         <h1 class="text-5xl font-black mb-4 bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-600">GameRating LIVE</h1>
-        <p id="status" class="text-gray-500 font-mono text-sm uppercase">RAWG API 실시간 연결 중...</p>
+        <p id="status" class="text-gray-500 font-mono text-sm uppercase">키 파일 확인 중...</p>
+        
+        <div class="max-w-md mx-auto my-8">
+            <input type="text" id="searchInput" placeholder="게임 제목으로 실시간 검색..." 
+                class="w-full bg-gray-800/50 border border-gray-700 rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 backdrop-blur-sm transition">
+        </div>
+
+        <div class="flex justify-center gap-4 mb-8">
+            <button onclick="switchTab('recent')" id="tab-recent" class="px-8 py-3 rounded-xl bg-blue-600 font-bold transition shadow-lg shadow-blue-500/20">최신 게임 (최근 1년)</button>
+            <button onclick="switchTab('upcoming')" id="tab-upcoming" class="px-8 py-3 rounded-xl bg-gray-800 text-gray-400 hover:bg-gray-700 font-bold transition">발매 예정작</button>
+        </div>
     </header>
 
     <main id="gameGrid" class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         </main>
 
     <script>
-        // 1. 여기에 발급받은 RAWG API KEY를 넣어줘!
-        const API_KEY = '7219e4fdc2f14474adb13fbb2c65073d'; 
+        let API_KEY = ''; // api.txt에서 자동으로 로드될 예정
+        let allFetchedGames = []; 
+        let currentTab = 'recent'; 
 
-        // 플랫폼 정보를 분석해서 예쁜 배지로 만들어주는 함수
         function getPlatformBadges(platforms) {
             if (!platforms) return '';
             return platforms.map(p => {
@@ -34,89 +44,94 @@
             }).join(' ');
         }
 
-// API 데이터 가져오기 (인기도 중심 정렬 및 필터 강화)
-        async function fetchGames() {
-            if (API_KEY === 'YOUR_API_KEY_HERE') {
-                document.getElementById('gameGrid').innerHTML = `<div class="col-span-full text-center py-20 text-red-500 font-bold">API 키를 입력해주세요!</div>`;
-                return;
-            }
+        // 1. 페이지 로드 시 api.txt를 먼저 읽어오는 기능
+        async function initSite() {
+            const statusEl = document.getElementById('status');
+            try {
+                // 같은 서버/폴더 내의 api.txt 읽기
+                const response = await fetch('./api.txt');
+                if (!response.ok) throw new Error();
+                
+                const keyText = await response.text();
+                API_KEY = keyText.trim(); // 공백이나 줄바꿈 제거
 
+                if (!API_KEY) {
+                    statusEl.innerText = `● api.txt 파일 안에 키 내용이 없습니다.`;
+                    return;
+                }
+
+                statusEl.innerText = `● RAWG API 실시간 연결 중...`;
+                fetchGames(); // 키를 성공적으로 가져왔으면 게임 데이터 호출
+            } catch (err) {
+                statusEl.innerText = `● api.txt 파일을 찾을 수 없습니다. (저장소에 업로드 해주세요)`;
+                document.getElementById('gameGrid').innerHTML = `<div class="col-span-full text-center py-20 text-red-500 font-bold">api.txt 파일 생성이 필요합니다.</div>`;
+            }
+        }
+
+        // 2. 게임 데이터 가져오기
+        async function fetchGames() {
             try {
                 const now = new Date();
                 const fromDate = new Date(new Date().setFullYear(now.getFullYear() - 1)).toISOString().split('T')[0];
                 const toDate = new Date(new Date().setFullYear(now.getFullYear() + 1)).toISOString().split('T')[0];
 
-                // 1. ordering을 -added (인기도순)으로 변경해서 대작들을 우선 배치
                 const url = `https://api.rawg.io/api/games?key=${API_KEY}&dates=${fromDate},${toDate}&ordering=-added&page_size=50`;
                 const response = await fetch(url);
                 const data = await response.json();
 
-                // 2. 붉은사막이나 화제작을 살리기 위한 트리플 조건 필터링
                 allFetchedGames = data.results.filter(game => {
-                    const isHighScore = game.metacritic >= 75;    // 명작 커트라인 (75점으로 완화)
-                    const isPopular = game.added >= 2000;          // 점수 낮아도 유저들이 많이 등록한 화제작
-                    const isUpcoming = game.metacritic === null;   // 아직 출시 전인 기대작 (붉은사막 등)
+                    const isHighScore = game.metacritic >= 75;    
+                    const isPopular = game.added >= 2000;          
+                    const isUpcoming = game.metacritic === null;   
 
                     return isHighScore || isPopular || isUpcoming;
                 });
 
                 updateView();
-                document.getElementById('status').innerText = `● LIVE: 인기도 기반 AAA 데이터 동기화 완료`;
+                document.getElementById('status').innerText = `● LIVE: 실시간 데이터 동기화 완료`;
             } catch (err) {
                 console.error(err);
-                document.getElementById('status').innerText = `● 에러 발생: ${err.message}`;
+                document.getElementById('status').innerText = `● 데이터 로드 실패 (API 키를 확인해주세요)`;
             }
         }
 
-            try {
-                // [자동화] 시스템의 오늘 날짜를 YYYY-MM-DD 형식으로 가져오기
-                const todayObj = new Date();
-                const yyyy = todayObj.getFullYear();
-                const mm = String(todayObj.getMonth() + 1).padStart(2, '0');
-                const dd = String(todayObj.getDate()).padStart(2, '0');
-                const today = `${yyyy}-${mm}-${dd}`;
-
-                // [자동화] 오늘 기준 정확히 1년 전 날짜 계산하기
-                const oneYearAgoObj = new Date();
-                oneYearAgoObj.setFullYear(todayObj.getFullYear() - 1);
-                const pyyyy = oneYearAgoObj.getFullYear();
-                const pmm = String(oneYearAgoObj.getMonth() + 1).padStart(2, '0');
-                const pdd = String(oneYearAgoObj.setMonth(oneYearAgoObj.getMonth())).padStart(2, '0'); // 날짜 보정
-                const oneYearAgo = `${pyyyy}-${pmm}-${String(oneYearAgoObj.getDate()).padStart(2, '0')}`;
-
-                // 자동으로 계산된 날짜 범주로 API 호출 (최근 1년간 출시된 메타크리틱 점수 높은 순)
-                const response = await fetch(`https://api.rawg.io/api/games?key=${API_KEY}&dates=${oneYearAgo},${today}&ordering=-metacritic&page_size=12`);
-                const data = await response.json();
-                
-                render(data.results);
-                document.getElementById('status').innerText = `● LIVE: ${yyyy}년 ${mm}월 ${dd}일 실시간 데이터 동기화 완료`;
-            } catch (err) {
-                document.getElementById('status').innerText = `● 연결 에러: API 키 또는 네트워크를 확인해주세요.`;
-            }
-        }
-
-        function render(games) {
+        function updateView() {
             const grid = document.getElementById('gameGrid');
-            grid.innerHTML = games.map(game => {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            const filtered = allFetchedGames.filter(game => {
+                const matchesSearch = game.name.toLowerCase().includes(searchTerm);
+                const isUpcoming = game.released ? game.released > todayStr : true;
+                const matchesTab = (currentTab === 'recent' && !isUpcoming) || (currentTab === 'upcoming' && isUpcoming);
+
+                return matchesTab && matchesSearch;
+            });
+
+            if (filtered.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center py-20 text-gray-500">조건에 맞는 AAA 게임이 없습니다.</div>`;
+                return;
+            }
+
+            grid.innerHTML = filtered.map(game => {
                 const namuUrl = `https://namu.wiki/w/${encodeURIComponent(game.name)}`;
-                const steamLink = game.platforms.find(p => p.platform.slug === 'pc') ? `https://store.steampowered.com/search/?term=${encodeURIComponent(game.name)}` : '#';
+                const steamLink = game.platforms && game.platforms.find(p => p.platform.slug === 'pc') ? `https://store.steampowered.com/search/?term=${encodeURIComponent(game.name)}` : '#';
                 const platformHtml = getPlatformBadges(game.platforms);
                 
                 return `
-                    <div class="bg-[#1a1d23] rounded-3xl overflow-hidden border border-gray-800 hover:border-green-500/50 transition-all duration-500 shadow-2xl group">
+                    <div class="bg-[#1a1d23] rounded-3xl overflow-hidden border border-gray-800 hover:border-blue-500/50 transition-all duration-500 shadow-2xl group">
                         <div class="relative overflow-hidden">
                             <img src="${game.background_image || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800'}" class="w-full h-52 object-cover group-hover:scale-110 transition duration-700">
                             <div class="absolute top-4 right-4 bg-black/60 backdrop-blur-lg text-green-400 font-black px-4 py-1.5 rounded-2xl border border-white/10 shadow-xl">
-                                ${game.metacritic || 'NR'}
+                                ${game.metacritic || 'TBD'}
                             </div>
                         </div>
                         <div class="p-8">
-                            <h2 class="text-xl font-bold mb-2 line-clamp-1 group-hover:text-green-400 transition">${game.name}</h2>
-                            
+                            <h2 class="text-xl font-bold mb-2 line-clamp-1 group-hover:text-blue-400 transition">${game.name}</h2>
                             <div class="flex flex-wrap gap-1 mb-4">${platformHtml}</div>
                             
-                            <p class="text-gray-500 text-sm mb-6 flex items-center gap-2"><i data-lucide="calendar" class="w-4 h-4"></i> ${game.released}</p>
-                                    <p class="text-gray-500 text-xs mt-1">🔥 ${game.added.toLocaleString()} 관심 등록</p>
+                            <p class="text-gray-500 text-sm flex items-center gap-2"><i data-lucide="calendar" class="w-4 h-4"></i> ${game.released || '발매일 미정'}</p>
+                            <p class="text-gray-500 text-xs mt-2 mb-6">🔥 ${game.added ? game.added.toLocaleString() : 0} 관심 등록</p>
                             
                             <div class="grid grid-cols-3 gap-3">
                                 <a href="${steamLink}" target="_blank" class="flex flex-col items-center justify-center gap-2 bg-[#171a21] hover:bg-blue-600/20 py-3 rounded-2xl transition border border-white/5">
@@ -139,7 +154,17 @@
             lucide.createIcons();
         }
 
-        fetchGames();
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('tab-recent').className = tab === 'recent' ? 'px-8 py-3 rounded-xl bg-blue-600 font-bold transition shadow-lg shadow-purple-500/20' : 'px-8 py-3 rounded-xl bg-gray-800 text-gray-400 hover:bg-gray-700 font-bold transition';
+            document.getElementById('tab-upcoming').className = tab === 'upcoming' ? 'px-8 py-3 rounded-xl bg-blue-600 font-bold transition shadow-lg shadow-purple-500/20' : 'px-8 py-3 rounded-xl bg-gray-800 text-gray-400 hover:bg-gray-700 font-bold transition';
+            updateView();
+        }
+
+        document.getElementById('searchInput').addEventListener('input', updateView);
+
+        // 실행 시작점 변경
+        window.onload = initSite;
     </script>
 </body>
 </html>
