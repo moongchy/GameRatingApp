@@ -19,7 +19,7 @@
 
     <script>
         // 1. 여기에 발급받은 RAWG API KEY를 넣어줘!
-        const API_KEY = 'YOUR_API_KEY_HERE'; 
+        const API_KEY = '7219e4fdc2f14474adb13fbb2c65073d'; 
 
         // 플랫폼 정보를 분석해서 예쁜 배지로 만들어주는 함수
         function getPlatformBadges(platforms) {
@@ -35,7 +35,7 @@
         }
 
         async function fetchGames() {
-            if (API_KEY === '7219e4fdc2f14474adb13fbb2c65073d') {
+            if (API_KEY === 'YOUR_API_KEY_HERE') {
                 document.getElementById('gameGrid').innerHTML = `<div class="col-span-full text-center py-20 text-red-500 font-bold">코드 상단의 'YOUR_API_KEY_HERE' 부분을 실제 API 키로 바꿔주세요!</div>`;
                 return;
             }
@@ -77,4 +77,40 @@
                 return `
                     <div class="bg-[#1a1d23] rounded-3xl overflow-hidden border border-gray-800 hover:border-green-500/50 transition-all duration-500 shadow-2xl group">
                         <div class="relative overflow-hidden">
-                            <img src="${game.background_image || '
+                            <img src="${game.background_image || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800'}" class="w-full h-52 object-cover group-hover:scale-110 transition duration-700">
+                            <div class="absolute top-4 right-4 bg-black/60 backdrop-blur-lg text-green-400 font-black px-4 py-1.5 rounded-2xl border border-white/10 shadow-xl">
+                                ${game.metacritic || 'NR'}
+                            </div>
+                        </div>
+                        <div class="p-8">
+                            <h2 class="text-xl font-bold mb-2 line-clamp-1 group-hover:text-green-400 transition">${game.name}</h2>
+                            
+                            <div class="flex flex-wrap gap-1 mb-4">${platformHtml}</div>
+                            
+                            <p class="text-gray-500 text-sm mb-6 flex items-center gap-2"><i data-lucide="calendar" class="w-4 h-4"></i> ${game.released}</p>
+                            
+                            <div class="grid grid-cols-3 gap-3">
+                                <a href="${steamLink}" target="_blank" class="flex flex-col items-center justify-center gap-2 bg-[#171a21] hover:bg-blue-600/20 py-3 rounded-2xl transition border border-white/5">
+                                    <img src="https://cdn.simpleicons.org/steam/white" class="w-5 h-5">
+                                    <span class="text-[9px] font-black">STEAM</span>
+                                </a>
+                                <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(game.name + ' trailer')}" target="_blank" class="flex flex-col items-center justify-center gap-2 bg-[#282828] hover:bg-red-600/20 py-3 rounded-2xl transition border border-white/5">
+                                    <img src="https://cdn.simpleicons.org/youtube/white" class="w-5 h-5">
+                                    <span class="text-[9px] font-black">TRAILER</span>
+                                </a>
+                                <a href="${namuUrl}" target="_blank" class="flex flex-col items-center justify-center gap-2 bg-[#00a495]/10 hover:bg-[#00a495]/30 py-3 rounded-2xl transition border border-[#00a495]/20">
+                                    <i data-lucide="book-text" class="w-5 h-5 text-[#00a495]"></i>
+                                    <span class="text-[9px] font-black text-[#00a495]">WIKI</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        fetchGames();
+    </script>
+</body>
+</html>
