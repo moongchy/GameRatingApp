@@ -3,83 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GameRating Live - 2026</title>
+    <title>GameRating LIVE - 2026</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body class="bg-[#0f1115] text-white min-h-screen p-4 md:p-8">
 
     <header class="max-w-6xl mx-auto mb-12 text-center">
-        <h1 class="text-5xl font-black mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">GameRating LIVE</h1>
-        <p id="liveStatus" class="text-gray-500 animate-pulse font-mono text-sm">● STEAM 실시간 데이터 동기화 중...</p>
+        <h1 class="text-5xl font-black mb-4 bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-600">GameRating LIVE</h1>
+        <p id="status" class="text-gray-500 font-mono text-sm uppercase">RAWG API 실시간 연결 중...</p>
     </header>
 
     <main id="gameGrid" class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        <div class="col-span-full text-center py-20 text-gray-600 font-bold">데이터를 불러오는 중입니다...</div>
-    </main>
+        </main>
 
     <script>
-        // 스팀 실시간 데이터를 가져오는 함수
-        async function fetchLiveGames() {
-            try {
-                // 스팀의 '인기 신작' 카테고리 데이터를 가져옵니다. 
-                // 브라우저 직접 호출 제한을 피하기 위해 올인원 프록시(allorigins)를 사용합니다.
-                const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://store.steampowered.com/api/featuredcategories')}`);
-                const data = await response.json();
-                const steamData = JSON.parse(data.contents);
+        // 1. 여기에 발급받은 RAWG API KEY를 넣어줘!
+        const API_KEY = 'YOUR_API_KEY_HERE'; 
 
-                // 'new_releases' (신규 출시) 섹션의 게임들을 추출
-                const liveGames = steamData.new_releases.items.slice(0, 9); // 상위 9개만
-                renderGames(liveGames);
-                document.getElementById('liveStatus').innerText = `● 2026년 5월 16일 실시간 업데이트 완료`;
-                document.getElementById('liveStatus').classList.remove('animate-pulse');
-            } catch (error) {
-                console.error("데이터 로드 실패:", error);
-                document.getElementById('liveStatus').innerText = "● 데이터 연결 실패 (새로고침 해주세요)";
+        // 플랫폼 정보를 분석해서 예쁜 배지로 만들어주는 함수
+        function getPlatformBadges(platforms) {
+            if (!platforms) return '';
+            return platforms.map(p => {
+                const name = p.platform.name.toLowerCase();
+                if (name.includes('pc')) return `<span class="bg-gray-700/60 text-gray-200 text-[10px] px-2 py-0.5 rounded border border-gray-600 font-bold">PC</span>`;
+                if (name.includes('playstation')) return `<span class="bg-blue-600/20 text-blue-400 text-[10px] px-2 py-0.5 rounded border border-blue-500/30 font-bold">PS5</span>`;
+                if (name.includes('xbox')) return `<span class="bg-green-600/20 text-green-400 text-[10px] px-2 py-0.5 rounded border border-green-500/30 font-bold">Xbox</span>`;
+                if (name.includes('nintendo')) return `<span class="bg-red-600/20 text-red-400 text-[10px] px-2 py-0.5 rounded border border-red-500/30 font-bold">Switch</span>`;
+                return '';
+            }).join(' ');
+        }
+
+        async function fetchGames() {
+            if (API_KEY === '7219e4fdc2f14474adb13fbb2c65073d') {
+                document.getElementById('gameGrid').innerHTML = `<div class="col-span-full text-center py-20 text-red-500 font-bold">코드 상단의 'YOUR_API_KEY_HERE' 부분을 실제 API 키로 바꿔주세요!</div>`;
+                return;
+            }
+
+            try {
+                // [자동화] 시스템의 오늘 날짜를 YYYY-MM-DD 형식으로 가져오기
+                const todayObj = new Date();
+                const yyyy = todayObj.getFullYear();
+                const mm = String(todayObj.getMonth() + 1).padStart(2, '0');
+                const dd = String(todayObj.getDate()).padStart(2, '0');
+                const today = `${yyyy}-${mm}-${dd}`;
+
+                // [자동화] 오늘 기준 정확히 1년 전 날짜 계산하기
+                const oneYearAgoObj = new Date();
+                oneYearAgoObj.setFullYear(todayObj.getFullYear() - 1);
+                const pyyyy = oneYearAgoObj.getFullYear();
+                const pmm = String(oneYearAgoObj.getMonth() + 1).padStart(2, '0');
+                const pdd = String(oneYearAgoObj.setMonth(oneYearAgoObj.getMonth())).padStart(2, '0'); // 날짜 보정
+                const oneYearAgo = `${pyyyy}-${pmm}-${String(oneYearAgoObj.getDate()).padStart(2, '0')}`;
+
+                // 자동으로 계산된 날짜 범주로 API 호출 (최근 1년간 출시된 메타크리틱 점수 높은 순)
+                const response = await fetch(`https://api.rawg.io/api/games?key=${API_KEY}&dates=${oneYearAgo},${today}&ordering=-metacritic&page_size=12`);
+                const data = await response.json();
+                
+                render(data.results);
+                document.getElementById('status').innerText = `● LIVE: ${yyyy}년 ${mm}월 ${dd}일 실시간 데이터 동기화 완료`;
+            } catch (err) {
+                document.getElementById('status').innerText = `● 연결 에러: API 키 또는 네트워크를 확인해주세요.`;
             }
         }
 
-        function renderGames(items) {
+        function render(games) {
             const grid = document.getElementById('gameGrid');
-            grid.innerHTML = '';
-
-            items.forEach(game => {
-                const steamLink = `https://store.steampowered.com/app/${game.id}`;
-                const namuLink = `https://namu.wiki/w/${encodeURIComponent(game.name)}`;
+            grid.innerHTML = games.map(game => {
+                const namuUrl = `https://namu.wiki/w/${encodeURIComponent(game.name)}`;
+                const steamLink = game.platforms.find(p => p.platform.slug === 'pc') ? `https://store.steampowered.com/search/?term=${encodeURIComponent(game.name)}` : '#';
+                const platformHtml = getPlatformBadges(game.platforms);
                 
-                grid.innerHTML += `
-                    <div class="bg-[#1a1d23] rounded-3xl overflow-hidden border border-gray-800 hover:border-blue-500/50 transition-all duration-500 shadow-2xl group">
+                return `
+                    <div class="bg-[#1a1d23] rounded-3xl overflow-hidden border border-gray-800 hover:border-green-500/50 transition-all duration-500 shadow-2xl group">
                         <div class="relative overflow-hidden">
-                            <img src="${game.large_capsule_image}" class="w-full h-52 object-cover group-hover:scale-110 transition duration-700" alt="${game.name}">
-                            <div class="absolute top-4 right-4 bg-blue-600 text-white font-black px-3 py-1 rounded-xl text-xs">
-                                ${game.final_price > 0 ? (game.final_price/100).toLocaleString() + '원' : 'FREE'}
-                            </div>
-                        </div>
-                        <div class="p-8">
-                            <h2 class="text-xl font-bold mb-4 line-clamp-1 group-hover:text-blue-400 transition">${game.name}</h2>
-                            
-                            <div class="grid grid-cols-3 gap-3">
-                                <a href="${steamLink}" target="_blank" class="flex flex-col items-center justify-center gap-2 bg-[#171a21] hover:bg-[#2a475e] py-3 rounded-2xl transition group/btn">
-                                    <img src="https://cdn.simpleicons.org/steam/white" class="w-5 h-5 group-hover/btn:scale-110 transition">
-                                    <span class="text-[10px] font-black">STEAM</span>
-                                </a>
-                                <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(game.name + ' trailer')}" target="_blank" class="flex flex-col items-center justify-center gap-2 bg-[#282828] hover:bg-[#ff0000] py-3 rounded-2xl transition group/btn">
-                                    <img src="https://cdn.simpleicons.org/youtube/white" class="w-5 h-5 group-hover/btn:scale-110 transition">
-                                    <span class="text-[10px] font-black">TRAILER</span>
-                                </a>
-                                <a href="${namuLink}" target="_blank" class="flex flex-col items-center justify-center gap-2 bg-[#00a495] hover:bg-[#00c4b5] py-3 rounded-2xl transition group/btn">
-                                    <i data-lucide="book-text" class="w-5 h-5 group-hover/btn:scale-110 transition"></i>
-                                    <span class="text-[10px] font-black">WIKI</span>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-            lucide.createIcons();
-        }
-
-        window.onload = fetchLiveGames;
-    </script>
-</body>
-</html>
+                            <img src="${game.background_image || '
