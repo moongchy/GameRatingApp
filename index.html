@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GameRating - AAA 게임 큐레이션</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        .tab-active { @apply bg-purple-600 text-white; }
+        .tab-active { @apply bg-purple-600 text-white shadow-lg shadow-purple-500/20; }
         .tab-inactive { @apply bg-gray-800 text-gray-400 hover:bg-gray-700; }
     </style>
 </head>
@@ -15,14 +16,18 @@
     <header class="max-w-6xl mx-auto mb-12 text-center">
         <h1 class="text-4xl font-bold mb-4 text-purple-400">🎮 GameRating</h1>
         
-        <div class="max-w-md mx-auto mb-8">
-            <input type="text" id="searchInput" placeholder="게임 제목 검색..." 
-                class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+        <div class="max-w-md mx-auto mb-8 text-gray-400 text-sm">
+            최신 AAA 게임의 메타 점수와 한글/코옵 정보를 확인하세요.
+        </div>
+
+        <div class="max-w-md mx-auto mb-8 relative">
+            <input type="text" id="searchInput" placeholder="게임 제목으로 검색..." 
+                class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500 transition">
         </div>
 
         <div class="flex justify-center gap-4 mb-8">
-            <button onclick="filterGames('recent')" id="tab-recent" class="px-6 py-2 rounded-full tab-active">최근 2년 신작</button>
-            <button onclick="filterGames('upcoming')" id="tab-upcoming" class="px-6 py-2 rounded-full tab-inactive">발매 예정작</button>
+            <button onclick="filterGames('recent')" id="tab-recent" class="px-6 py-2 rounded-full tab-active font-bold transition">최근 2년 신작</button>
+            <button onclick="filterGames('upcoming')" id="tab-upcoming" class="px-6 py-2 rounded-full tab-inactive font-bold transition">발매 예정작</button>
         </div>
     </header>
 
@@ -30,13 +35,15 @@
         </main>
 
     <script>
-        // 1 & 2. 데이터 구성 (최근 2년 AAA 게임 + 예정작)
+        // 4. 실제 정보 연결 (데이터 업데이트)
         const games = [
-            { title: "엘든 링: 황금 나무의 그림자", date: "2024.06.21", score: 95, type: "recent", lang: "KO", trailer: "https://www.youtube.com/results?search_query=Elden+Ring+Shadow+of+the+Erdtree+trailer", img: "https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=800" },
-            { title: "검은 신화: 오공", date: "2024.08.20", score: 81, type: "recent", lang: "KO", trailer: "https://www.youtube.com/results?search_query=Black+Myth+Wukong+trailer", img: "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800" },
-            { title: "젤다의 전설 티어스 오브 더 킹덤", date: "2023.05.12", score: 96, type: "recent", lang: "KO", trailer: "https://www.youtube.com/results?search_query=Zelda+Tears+of+the+Kingdom+trailer", img: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800" },
-            { title: "몬스터 헌터 와일즈", date: "2025 예정", score: "TBD", type: "upcoming", lang: "KO", trailer: "https://www.youtube.com/results?search_query=Monster+Hunter+Wilds+trailer", img: "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800" },
-            { title: "GTA 6", date: "2025 예정", score: "TBD", type: "upcoming", lang: "KO", trailer: "https://www.youtube.com/results?search_query=GTA+6+trailer", img: "https://images.unsplash.com/photo-1533236897111-3e94666b2edf?w=800" }
+            { title: "엘든 링: 황금 나무의 그림자", date: "2024.06.21", score: 95, type: "recent", lang: true, mode: "싱글/코옵", steam: "1543390", youtube: "https://youtu.be/qLZenOn7WUo", img: "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1543390/header.jpg" },
+            { title: "검은 신화: 오공", date: "2024.08.20", score: 81, type: "recent", lang: true, mode: "싱글 전용", steam: "2358720", youtube: "https://youtu.be/O27VzD76h1U", img: "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/2358720/header.jpg" },
+            { title: "헬다이버즈 2", date: "2024.02.08", score: 82, type: "recent", lang: true, mode: "온라인 코옵", steam: "553850", youtube: "https://youtu.be/lH66S4WccF8", img: "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/553850/header.jpg" },
+            { title: "철권 8", date: "2024.01.26", score: 90, type: "recent", lang: true, mode: "싱글/멀티", steam: "1778820", youtube: "https://youtu.be/29Xv7O_m_R8", img: "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1778820/header.jpg" },
+            { title: "몬스터 헌터 와일즈", date: "2025.02.28", score: "TBD", type: "upcoming", lang: true, mode: "싱글/코옵", steam: "2246340", youtube: "https://youtu.be/tT8p6M_mO70", img: "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/2246340/header.jpg" },
+            { title: "GTA VI", date: "2025 가을 예정", score: "TBD", type: "upcoming", lang: true, mode: "미정", steam: "", youtube: "https://youtu.be/QdBZY2fkU-0", img: "https://media-rockstargames-com.akamaized.net/mvr/6/38e448b/img/logos/social.jpg" },
+            { title: "데스 스트랜딩 2", date: "2025 예정", score: "TBD", type: "upcoming", lang: true, mode: "싱글 전용", steam: "", youtube: "https://youtu.be/idH0LpY-5pY", img: "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800" }
         ];
 
         function renderGames(filterType = 'recent', searchTerm = '') {
@@ -50,39 +57,52 @@
             });
 
             filtered.forEach(game => {
+                const steamLink = game.steam ? `https://store.steampowered.com/app/${game.steam}` : '#';
+                
                 grid.innerHTML += `
-                    <div class="bg-gray-800 rounded-xl overflow-hidden border border-gray-700 hover:scale-105 transition shadow-lg">
-                        <img src="${game.img}" class="w-full h-48 object-cover">
-                        <div class="p-5">
-                            <div class="flex justify-between items-start mb-2">
-                                <h2 class="text-xl font-bold">${game.title}</h2>
-                                <span class="bg-yellow-500 text-black font-bold px-2 py-1 rounded text-sm">${game.score}</span>
+                    <div class="bg-gray-800 rounded-2xl overflow-hidden border border-gray-700 hover:border-purple-500/50 hover:scale-[1.02] transition-all duration-300 shadow-xl group">
+                        <div class="relative">
+                            <img src="${game.img}" class="w-full h-48 object-cover">
+                            <div class="absolute top-3 right-3 bg-black/70 backdrop-blur-md text-yellow-400 font-bold px-3 py-1 rounded-lg border border-yellow-400/30">
+                                ${game.score}
                             </div>
-                            <p class="text-sm text-gray-400 mb-4">발매일: ${game.date}</p>
-                            <div class="flex gap-2 mb-6">
-                                <span class="bg-green-600 text-xs px-2 py-1 rounded text-white font-bold">한국어 지원 ✅</span>
+                        </div>
+                        <div class="p-6">
+                            <h2 class="text-xl font-bold mb-1 group-hover:text-purple-400 transition">${game.title}</h2>
+                            <p class="text-sm text-gray-500 mb-4">${game.date}</p>
+                            
+                            <div class="flex flex-wrap gap-2 mb-6">
+                                <span class="bg-blue-900/50 text-blue-300 text-[11px] px-2 py-1 rounded-md border border-blue-500/30 font-medium">${game.mode}</span>
+                                ${game.lang ? '<span class="bg-green-900/50 text-green-300 text-[11px] px-2 py-1 rounded-md border border-green-500/30 font-medium text-white">한국어 지원 ✅</span>' : ''}
                             </div>
-                            <a href="${game.trailer}" target="_blank" class="block w-full text-center bg-red-600 py-2 rounded hover:bg-red-700 transition font-bold">📺 트레일러 보기</a>
+                            
+                            <div class="grid grid-cols-2 gap-3">
+                                <a href="${steamLink}" target="_blank" class="flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 py-2.5 rounded-xl transition text-sm font-semibold">
+                                    <i data-lucide="external-link" class="w-4 h-4"></i> Steam
+                                </a>
+                                <a href="${game.youtube}" target="_blank" class="flex items-center justify-center gap-2 bg-red-600/90 hover:bg-red-600 py-2.5 rounded-xl transition text-sm font-semibold">
+                                    <i data-lucide="youtube" class="w-4 h-4"></i> Trailer
+                                </a>
+                            </div>
                         </div>
                     </div>
                 `;
             });
+            // 아이콘 렌더링 실행
+            lucide.createIcons();
         }
 
-        // 5. 검색 기능
         document.getElementById('searchInput').addEventListener('input', (e) => {
             const currentTab = document.getElementById('tab-recent').classList.contains('tab-active') ? 'recent' : 'upcoming';
             renderGames(currentTab, e.target.value);
         });
 
-        // 탭 전환 기능
         function filterGames(type) {
-            document.getElementById('tab-recent').className = type === 'recent' ? 'px-6 py-2 rounded-full tab-active' : 'px-6 py-2 rounded-full tab-inactive';
-            document.getElementById('tab-upcoming').className = type === 'upcoming' ? 'px-6 py-2 rounded-full tab-active' : 'px-6 py-2 rounded-full tab-inactive';
+            document.getElementById('tab-recent').className = type === 'recent' ? 'px-6 py-2 rounded-full tab-active font-bold transition' : 'px-6 py-2 rounded-full tab-inactive font-bold transition';
+            document.getElementById('tab-upcoming').className = type === 'upcoming' ? 'px-6 py-2 rounded-full tab-active font-bold transition' : 'px-6 py-2 rounded-full tab-inactive font-bold transition';
             renderGames(type, document.getElementById('searchInput').value);
         }
 
-        // 초기 실행
         renderGames();
     </script>
 </body>
