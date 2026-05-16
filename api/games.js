@@ -8,22 +8,21 @@ module.exports = async (req, res) => {
     try {
         const now = new Date();
         const twoYearsAgo = new Date();
-        twoYearsAgo.setFullYear(now.getFullYear() - 2); // 🎯 타겟 범위를 최근 2년으로 넓혀서 명작 풀을 확보
+        twoYearsAgo.setFullYear(now.getFullYear() - 2); 
         
         const fromDate = twoYearsAgo.toISOString().split('T')[0];
         const toDate = now.toISOString().split('T')[0];
 
-        // 🎯 변경점 1: ordering=-added 로 변경 (최근 2년 출시작 중 전 세계 게이머들이 가장 많이 추가한 '체급 높은 대작' 순서로 정렬)
-        const rawgUrl = `https://api.rawg.io/api/games?key=${RAWG_KEY}&dates=${fromDate},${toDate}&platforms=187,186,4&tags=story-rich,cinematic&ordering=-added&page_size=40`;
+        // 🎯 변경점: 주소창의 tags 영역을 쉼표(,) 대신 기호(|)로 변경하여 'story-rich' 또는 'cinematic' 중 하나만 맞아도 가져오도록 완화!
+        const rawgUrl = `https://api.rawg.io/api/games?key=${RAWG_KEY}&dates=${fromDate},${toDate}&platforms=187,186,4&tags=story-rich|cinematic&ordering=-added&page_size=40`;
         const rawgRes = await fetch(rawgUrl);
         const rawgData = await rawgRes.json();
 
-        // 🎯 변경점 2: Added 컷트라인을 기존 300에서 3000으로 대폭 상향! (이하 급 인디/B급 게임 무조건 탈락)
-        let aaaGames = (rawgData.results || []).filter(game => game.added && game.added >= 3000);
+        // 🎯 변경점: 현실적인 대작/중견작 마지노선인 500명으로 커트라인 하향 조정
+        let aaaGames = (rawgData.results || []).filter(game => game.added && game.added >= 500);
 
-        // 혹시나 필터가 너무 세서 다 날아갔을 때를 대비한 안전장치 (최소 2000 이상)
         if (aaaGames.length < 5) {
-            aaaGames = (rawgData.results || []).filter(game => game.added && game.added >= 2000);
+            aaaGames = (rawgData.results || []).slice(0, 20);
         }
 
         const updatedGames = await Promise.all(aaaGames.map(async (game) => {
