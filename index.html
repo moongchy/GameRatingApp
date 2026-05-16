@@ -1,173 +1,93 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GOTY AAA Game Lounge</title>
-    <style>
-        :root {
-            --bg-color: #0f1115;
-            --card-bg: #1a1d24;
-            --text-color: #ffffff;
-            --text-muted: #94a3b8;
-            --accent: #3b82f6;
-            --single-color: #10b981;
-            --coop-color: #f59e0b;
-            --multi-color: #6366f1;
-        }
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-        }
-        h1 {
-            text-align: center;
-            margin-bottom: 30px;
-            font-size: 2rem;
-            color: var(--text-color);
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 25px;
-        }
-        .card {
-            background-color: var(--card-bg);
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
-            transition: transform 0.2s;
-        }
-        .card:hover {
-            transform: translateY(-5px);
-        }
-        .card-img {
-            width: 100%;
-            height: 180px;
-            object-fit: cover;
-        }
-        .card-content {
-            padding: 15px;
-        }
-        .card-title {
-            font-size: 1.15rem;
-            font-weight: bold;
-            margin: 0 0 10px 0;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .meta-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            font-size: 0.9rem;
-        }
-        .score {
-            background: #22c55e;
-            color: #fff;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-weight: bold;
-        }
-        .score.tbd {
-            background: #475569;
-        }
-        .released {
-            color: var(--text-muted);
-        }
-        .tag-container {
-            display: flex;
-            gap: 5px;
-            flex-wrap: wrap;
-        }
-        .badge {
-            font-size: 0.75rem;
-            padding: 4px 8px;
-            border-radius: 20px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-        .badge.singleplayer { background-color: rgba(16, 185, 129, 0.2); color: var(--single-color); border: 1px solid var(--single-color); }
-        .badge.co-op { background-color: rgba(245, 158, 11, 0.2); color: var(--coop-color); border: 1px solid var(--coop-color); }
-        .badge.multiplayer { background-color: rgba(99, 102, 241, 0.2); color: var(--multi-color); border: 1px solid var(--multi-color); }
-        .loading {
-            text-align: center;
-            font-size: 1.2rem;
-            color: var(--text-muted);
-            grid-column: 1 / -1;
-            padding: 50px 0;
-        }
-    </style>
-</head>
-<body>
+// api/games.js
+module.exports = async (req, res) => {
+    const RAWG_KEY = process.env.RAWG_KEY;
+    const { tab = 'recent' } = req.query;
 
-    <div class="container">
-        <h1>🎮 최신 GOTY 대작 라인업</h1>
-        <div class="grid" id="game-grid">
-            <div class="loading">게임을 불러오는 중입니다...</div>
-        </div>
-    </div>
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
 
-    <script>
-        async function fetchGames() {
-            const grid = document.getElementById('game-grid');
+    if (!RAWG_KEY) {
+        return res.status(500).json({ error: "RAWG_KEY missing" });
+    }
+
+    try {
+        const now = new Date();
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(now.getFullYear() - 1); // 최근 1개년 타겟
+        
+        const fromDate = oneYearAgo.toISOString().split('T')[0];
+        const toDate = now.toISOString().split('T')[0];
+
+        // 🎯 [GOTY 감성 거름망]
+        // - platforms=187,186,4 (PS5, Xbox Series X/S, PC 대작 중심)
+        // - tags=story-rich,cinematic (갓오워, 앨런웨이크, RE 시리즈 같은 영화형 대작 속성 고정)
+        // - ordering=-released (최근 1년 내 출시작 최신순)
+        const rawgUrl = `https://api.rawg.io/api/games?key=${RAWG_KEY}&dates=${fromDate},${toDate}&platforms=187,186,4&tags=story-rich,cinematic&ordering=-released&page_size=40`;
+        
+        const rawgRes = await fetch(rawgUrl);
+        const rawgData = await rawgRes.json();
+
+        // 대작 필터링 안전장치 (관심도 유저 수 300 이상만 통과시켜 B급 이하 방어)
+        let gatyGames = (rawgData.results || []).filter(game => {
+            return game.added && game.added >= 300; 
+        });
+
+        // 만약 조건이 너무 빡빡해서 신작이 안 나오면 상위 데이터로 안전 방어
+        if (gatyGames.length < 5) {
+            gatyGames = (rawgData.results || []).slice(0, 20);
+        }
+
+        // 스팀 API 크로스 매칭으로 싱글/협동(코옵) 태그 명시하기
+        const updatedGames = await Promise.all(gatyGames.map(async (game) => {
+            game.tags = []; // 태그 초기화 후 정밀 주입
+
             try {
-                // Vercel Serverless Function 주소 (같은 도메인이면 '/api/games'로 연동)
-                const res = await fetch('/api/games');
-                const data = await res.json();
+                const steamSearchUrl = `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(game.name)}&l=korean&cc=KR`;
+                const searchRes = await fetch(steamSearchUrl);
+                const searchData = await searchRes.json();
 
-                if (!data.results || data.results.length === 0) {
-                    grid.innerHTML = '<div class="loading">표시할 AAA 게임이 없습니다.</div>';
-                    return;
+                if (searchData && searchData.items && searchData.items.length > 0) {
+                    const steamId = searchData.items[0].id;
+                    const steamApiUrl = `https://store.steampowered.com/api/appdetails?appids=${steamId}&l=korean`;
+                    const steamRes = await fetch(steamApiUrl);
+                    const steamData = await steamRes.json();
+
+                    if (steamData[steamId]?.success) {
+                        const details = steamData[steamId].data;
+                        
+                        if (details.metacritic && details.metacritic.score) {
+                            game.metacritic = details.metacritic.score;
+                        }
+
+                        // 🎯 스팀 카테고리 데이터 분석 후 싱글/코옵 배지 규격 주입
+                        if (details.categories) {
+                            details.categories.forEach(cat => {
+                                if (cat.id === 2) game.tags.push({ name: "Singleplayer", slug: "singleplayer" });
+                                if (cat.id === 9 || cat.id === 24) game.tags.push({ name: "Co-op", slug: "co-op" });
+                                if (cat.id === 1 || cat.id === 38) game.tags.push({ name: "Multiplayer", slug: "multiplayer" });
+                            });
+                        }
+                    }
                 }
-
-                grid.innerHTML = ''; // 로딩 문구 제거
-
-                data.results.forEach(game => {
-                    // 카드 엘리먼트 생성
-                    const card = document.createElement('div');
-                    card.className = 'card';
-
-                    // 메타크리틱 스코어 스타일 분기
-                    const scoreClass = game.metacritic === 'TBD' ? 'score tbd' : 'score';
-
-                    // 스팀 태그 배지 HTML 동적 생성
-                    const tagsHtml = game.tags && game.tags.length > 0 
-                        ? game.tags.map(tag => `<span class="badge ${tag.slug}">${tag.name}</span>`).join('')
-                        : '<span class="badge singleplayer">Singleplayer</span>';
-
-                    card.innerHTML = `
-                        <img class="card-img" src="${game.background_image || 'https://via.placeholder.com/300x180'}" alt="${game.name}">
-                        <div class="card-content">
-                            <div class="card-title" title="${game.name}">${game.name}</div>
-                            <div class="meta-info">
-                                <span class="released">${game.released || '출시일 미정'}</span>
-                                <span class="${scoreClass}">${game.metacritic}</span>
-                            </div>
-                            <div class="tag-container">
-                                ${tagsHtml}
-                            </div>
-                        </div>
-                    `;
-                    grid.appendChild(card);
-                });
-
-            } catch (error) {
-                console.error(error);
-                grid.innerHTML = '<div class="loading">데이터를 가져오는 중 오류가 발생했습니다.</div>';
+            } catch (e) {
+                // 에러 시 패스
             }
-        }
 
-        // 페이지 로드 시 실행
-        window.addEventListener('DOMContentLoaded', fetchGames);
-    </script>
-</body>
-</html>
+            // 스팀 검색에 안 걸리는 콘솔 독점작 등은 기본적으로 싱글플레이어 배지 부여
+            if (game.tags.length === 0) {
+                game.tags.push({ name: "Singleplayer", slug: "singleplayer" });
+            }
+
+            // 중복 태그 제거 및 메타 평점 예외 처리
+            game.tags = Array.from(new Map(game.tags.map(item => [item.slug, item])).values());
+            game.metacritic = game.metacritic || "TBD";
+            
+            return game;
+        }));
+
+        return res.status(200).json({ results: updatedGames.slice(0, 30) });
+
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+};
