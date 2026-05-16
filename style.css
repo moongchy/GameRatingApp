@@ -1,6 +1,5 @@
 /* style.css */
 :root {
-    /* 🎯 2. 사이트 톤을 밝고 선명한 고급 딥 블루/퍼플 계열로 변경 */
     --bg-color: #1e222b;
     --card-bg: #282e3d;
     --text-color: #f8fafc;
@@ -19,8 +18,8 @@ body {
 }
 h1 {
     text-align: center;
-    margin-bottom: 20px;
-    font-size: 2.2rem;
+    margin-bottom: 25px;
+    font-size: 2.4rem;
     color: var(--text-color);
     text-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
@@ -29,31 +28,39 @@ h1 {
     margin: 0 auto;
 }
 
-/* 🎯 3. 필터 탭 스타일 정의 */
-.tabs {
+/* 🎯 2. 탭 메뉴를 중앙 정렬하고 대형 플렉스 박스로 업그레이드 */
+.tabs-container {
     display: flex;
     justify-content: center;
-    gap: 10px;
-    margin-bottom: 30px;
+    width: 100%;
+    margin-bottom: 40px;
+}
+.tabs {
+    display: inline-flex;
+    background-color: rgba(0, 0, 0, 0.15);
+    padding: 6px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 .tab-btn {
-    background-color: var(--card-bg);
+    background-color: transparent;
     color: var(--text-muted);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 10px 20px;
+    border: none;
+    padding: 12px 28px; /* 패딩을 대폭 넓혀서 버튼 체급 확대 */
     border-radius: 8px;
-    font-weight: 600;
+    font-size: 1.05rem;  /* 글씨 크기 확대 */
+    font-weight: bold;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.25s ease;
 }
 .tab-btn:hover {
-    background-color: rgba(255, 255, 255, 0.05);
     color: #fff;
+    background-color: rgba(255, 255, 255, 0.05);
 }
 .tab-btn.active {
     background-color: var(--accent);
     color: #1e222b;
-    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(96, 165, 250, 0.3);
 }
 
 .grid {
@@ -67,9 +74,17 @@ h1 {
     overflow: hidden;
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
     transition: transform 0.2s;
+    
+    /* 최하단 링크 고정을 위해 Flex 수직 구조로 변경 */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 .card:hover {
     transform: translateY(-5px);
+}
+.card-body {
+    width: 100%;
 }
 .card-img {
     width: 100%;
@@ -99,7 +114,7 @@ h1 {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
     font-size: 0.95rem;
 }
 .score {
@@ -115,37 +130,10 @@ h1 {
 .released {
     color: var(--text-muted);
 }
-
-/* 🎯 1. 외부 링크가 한 세트로 자연스럽게 녹아들도록 스타일 변경 */
-.card-links {
-    display: flex;
-    justify-content: flex-start;
-    gap: 15px;
-    margin-bottom: 16px;
-    padding-top: 4px;
-}
-.icon-link {
-    color: #94a3b8;
-    font-size: 1.4rem;
-    transition: all 0.2s ease-in-out;
-    text-decoration: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.icon-link:hover {
-    transform: scale(1.2);
-}
-.icon-link:hover.steam { color: #66c0f4; }
-.icon-link:hover.youtube { color: #ff0000; }
-.icon-link:hover.namu { color: #34d399; }
-
 .tag-container {
     display: flex;
     gap: 5px;
     flex-wrap: wrap;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    padding-top: 12px;
 }
 .badge {
     font-size: 0.75rem;
@@ -156,6 +144,35 @@ h1 {
 .badge.singleplayer { background-color: rgba(52, 211, 153, 0.15); color: var(--single-color); border: 1px solid var(--single-color); }
 .badge.co-op { background-color: rgba(251, 191, 36, 0.15); color: var(--coop-color); border: 1px solid var(--coop-color); }
 .badge.multiplayer { background-color: rgba(129, 140, 248, 0.15); color: var(--multi-color); border: 1px solid var(--multi-color); }
+
+/* 🎯 1. 외부 링크 바를 카드의 가장 밑바닥에 딱 고정시키고 구분선 처리 */
+.card-links {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 12px 0;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+.icon-link {
+    color: #94a3b8;
+    font-size: 1.4rem;
+    transition: all 0.2s ease-in-out;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+}
+.icon-link:hover {
+    transform: scale(1.2);
+    background-color: rgba(255, 255, 255, 0.05);
+}
+.icon-link:hover.steam { color: #66c0f4; }
+.icon-link:hover.youtube { color: #ff0000; }
+.icon-link:hover.namu { color: #34d399; }
 
 .loading {
     text-align: center;
