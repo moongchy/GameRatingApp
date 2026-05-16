@@ -1,75 +1,68 @@
 // api/games.js
 module.exports = async (req, res) => {
+    const RAWG_KEY = process.env.RAWG_KEY;
+    const { tab = 'recent' } = req.query;
+
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
 
+    if (!RAWG_KEY) {
+        return res.status(500).json({ error: "RAWG_KEY missing" });
+    }
+
     try {
-        // 1. 스팀 공식 실시간 카테고리 피드 호출 (인기 신작 및 탑셀러 타겟팅)
-        const steamListRes = await fetch('https://store.steampowered.com/api/featuredcategories/?l=korean&cc=KR');
-        const steamListData = await steamListRes.json();
-        
-        // 인기 신작(new_releases)과 탑셀러(top_sellers) 목록을 합쳐서 중복 제거
-        const newReleases = steamListData.new_releases?.items || [];
-        const topSellers = steamListData.top_sellers?.items || [];
-        const combinedGames = [...newReleases, ...topSellers];
-        
-        // 중복 AppID 제거 및 상위 12개 게임으로 압축 (타임아웃 방어)
-        const uniqueIds = Array.from(new Set(combinedGames.map(g => g.id))).slice(0, 12);
+        const now = new Date();
+        const fromDate = new Date(new Date().setFullYear(now.getFullYear() - 1)).toISOString().split('T')[0];
+        const toDate = new Date(new Date().setFullYear(now.getFullYear() + 1)).toISOString().split('T')[0];
 
-        if (uniqueIds.length === 0) {
-            return res.status(200).json({ results: [] });
-        }
+        // 1. RAWG에서 검증된 대작/인기 게임 목록 30개 정상적으로 가져오기
+        const rawgUrl = `https://api.rawg.io/api/games?key=${RAWG_KEY}&dates=${fromDate},${toDate}&ordering=-added&page_size=30`;
+        const rawgRes = await fetch(rawgUrl);
+        const rawgData = await rawgRes.json();
 
-        // 2. 오직 스팀 API만을 이용해 상세 정보와 메타크리틱 점수 매칭하기
-        const results = await Promise.all(uniqueIds.map(async (steamId) => {
-            // 원본 스팀 아이템 정보 매칭
-            const originItem = combinedGames.find(g => g.id === steamId);
-            
-            // 프론트엔드가 요구하는 데이터 규격(RAWG 포맷)으로 기본 템플릿 생성
-            let gameObj = {
-                id: steamId,
-                name: originItem ? originItem.name : "Steam Game",
-                slug: `steam-${steamId}`,
-                released: "LIVE",
-                background_image: originItem ? (originItem.large_capsule_image || originItem.header_image) : "",
-                metacritic: null, // 스팀에서 직접 받아올 메타스코어 위치
-                genres: [{ name: "PC Game" }]
-            };
+        const todayStr = now.toISOString().split('T')[0];
+        const filteredGames = (rawgData.results || []).filter(game => {
+            const isUpcoming = game.released ? game.released > todayStr : true;
+            return tab === 'recent' ? (!isUpcoming && game.released) : isUpcoming;
+        });
 
+        // 2. 각 게임의 메타크리틱 점수를 스팀 API를 추적해서 100% 강제 동기화
+        const updatedGames = await Promise.all(filteredGames.map(async (game) => {
             try {
-                // 스팀 공식 상점 상세 API 호출
-                const detailRes = await fetch(`https://store.steampowered.com/api/appdetails?appids=${steamId}&l=korean`);
-                const detailData = await detailRes.json();
+                // 스팀 상점 API 검색을 통해 가장 정확한 스팀 AppID를 찾아냄
+                const steamSearchUrl = `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(game.name)}&l=korean&cc=KR`;
+                const searchRes = await fetch(steamSearchUrl);
+                const searchData = await searchRes.json();
 
-                if (detailData[steamId]?.success) {
-                    const appData = detailData[steamId].data;
-                    
-                    // 🎯 [핵심] 스팀이 보관하고 있는 메타크리틱 진짜 점수 추출!
-                    if (appData.metacritic && appData.metacritic.score) {
-                        gameObj.metacritic = appData.metacritic.score;
-                    } else {
-                        // 스팀 상점에 메타스코어가 안 적혀있을 때의 안전장치 (TBD 처리)
-                        gameObj.metacritic = "TBD";
-                    }
+                if (searchData && searchData.items && searchData.items.length > 0) {
+                    const steamId = searchData.items[0].id;
 
-                    // 배경 이미지 업그레이드
-                    if (appData.background) {
-                        gameObj.background_image = appData.background;
-                    }
+                    // 스팀 상세 API를 찔러서 스팀이 보관 중인 진짜 메타크리틱 스코어 쏙 빼오기
+                    const steamApiUrl = `https://store.steampowered.com/api/appdetails?appids=${steamId}&l=korean`;
+                    const steamRes = await fetch(steamApiUrl);
+                    const steamData = await steamRes.json();
 
-                    // 장르 동기화
-                    if (appData.genres) {
-                        gameObj.genres = appData.genres.map(g => ({ name: g.description }));
+                    if (steamData[steamId]?.success) {
+                        const details = steamData[steamId].data;
+                        
+                        // RAWG 점수는 무시하고, 스팀에 등록된 메타크리틱 점수를 최우선으로 꽂아넣기
+                        if (details.metacritic && details.metacritic.score) {
+                            game.metacritic = details.metacritic.score;
+                        } else {
+                            game.metacritic = "TBD";
+                        }
                     }
+                } else {
+                    // 스팀에 없는 콘솔 독점작 등은 RAWG 점수가 있다면 유지, 없다면 TBD
+                    game.metacritic = game.metacritic || "TBD";
                 }
-            } catch (err) {
-                gameObj.metacritic = "TBD";
+            } catch (e) {
+                game.metacritic = game.metacritic || "TBD";
             }
-            return gameObj;
+            return game;
         }));
 
-        // 기존 프론트엔드 코드 수정 없이 그대로 붙도록 { results: [...] } 구조 반환
-        return res.status(200).json({ results });
+        return res.status(200).json({ results: updatedGames });
 
     } catch (error) {
         return res.status(500).json({ error: error.message });
