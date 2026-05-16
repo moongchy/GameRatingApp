@@ -12,11 +12,13 @@
     <div class="container">
         <h1>🎮 최신 GOTY 대작 라인업</h1>
         
-        <div class="tabs">
-            <button class="tab-btn active" data-filter="all">전체보기</button>
-            <button class="tab-btn" data-filter="released">발매 완료</button>
-            <button class="tab-btn" data-filter="upcoming">발매 예정</button>
-            <button class="tab-btn" data-filter="coop">협동</button>
+        <div class="tabs-container">
+            <div class="tabs">
+                <button class="tab-btn active" data-filter="all">전체보기</button>
+                <button class="tab-btn" data-filter="released">발매 완료</button>
+                <button class="tab-btn" data-filter="upcoming">발매 예정</button>
+                <button class="tab-btn" data-filter="coop">협동</button>
+            </div>
         </div>
 
         <div class="grid" id="game-grid">
@@ -25,7 +27,7 @@
     </div>
 
     <script>
-        let allGames = []; // 서버에서 가져온 전체 데이터를 저장할 배열
+        let allGames = [];
 
         function getTagText(slug) {
             if (slug === 'singleplayer') return '싱글';
@@ -44,9 +46,9 @@
                     return;
                 }
 
-                allGames = data.results; // 데이터 전역 저장
-                renderGames(allGames);   // 초기 화면 렌더링
-                setupTabs();             // 탭 이벤트 연결
+                allGames = data.results;
+                renderGames(allGames);
+                setupTabs();
 
             } catch (error) {
                 console.error(error);
@@ -54,7 +56,6 @@
             }
         }
 
-        // 🎯 게임 카드 출력 및 필터링 핵심 로직
         function renderGames(gamesList) {
             const grid = document.getElementById('game-grid');
             grid.innerHTML = '';
@@ -79,14 +80,15 @@
 
                 const encodedName = encodeURIComponent(game.name);
 
-                // 스태틱 콘텐츠 영역
-                const wrapper = document.createElement('div');
+                // 카드 상단 영역 (이미지 + 텍스트 정보) 구조화
+                const cardBody = document.createElement('div');
+                cardBody.className = 'card-body';
                 
                 const img = document.createElement('img');
                 img.className = 'card-img';
                 img.src = game.background_image || 'https://via.placeholder.com/300x180';
                 img.alt = game.name;
-                wrapper.appendChild(img);
+                cardBody.appendChild(img);
 
                 const content = document.createElement('div');
                 content.className = 'card-content';
@@ -109,16 +111,6 @@
                 `;
                 content.appendChild(metaInfo);
 
-                // 🎯 1. 외부 링크 영역을 카드 정보창 안으로 자연스럽게 포함
-                const cardLinks = document.createElement('div');
-                cardLinks.className = 'card-links';
-                cardLinks.innerHTML = `
-                    <a href="https://store.steampowered.com/search/?term=${encodedName}" target="_blank" class="icon-link steam" title="스팀"><i class="fa-brands fa-steam"></i></a>
-                    <a href="https://www.youtube.com/results?search_query=${encodedName}+official+trailer" target="_blank" class="icon-link youtube" title="유튜브"><i class="fa-brands fa-youtube"></i></a>
-                    <a href="https://namu.wiki/w/${encodedName}" target="_blank" class="icon-link namu" title="나무위키"><i class="fa-solid fa-book-open"></i></a>
-                `;
-                content.appendChild(cardLinks);
-
                 const tagContainer = document.createElement('div');
                 tagContainer.className = 'tag-container';
                 if (game.tags && game.tags.length > 0) {
@@ -135,21 +127,31 @@
                     tagContainer.appendChild(badge);
                 }
                 content.appendChild(tagContainer);
-                wrapper.appendChild(content);
-                card.appendChild(wrapper);
+                cardBody.appendChild(content);
+                
+                // 메인 바디 바인딩
+                card.appendChild(cardBody);
+
+                // 🎯 1. 외부 링크 바를 카드 내부 최하단(바닥)에 독립적으로 배치해 안정감 확보
+                const cardLinks = document.createElement('div');
+                cardLinks.className = 'card-links';
+                cardLinks.innerHTML = `
+                    <a href="https://store.steampowered.com/search/?term=${encodedName}" target="_blank" class="icon-link steam" title="스팀"><i class="fa-brands fa-steam"></i></a>
+                    <a href="https://www.youtube.com/results?search_query=${encodedName}+official+trailer" target="_blank" class="icon-link youtube" title="유튜브"><i class="fa-brands fa-youtube"></i></a>
+                    <a href="https://namu.wiki/w/${encodedName}" target="_blank" class="icon-link namu" title="나무위키"><i class="fa-solid fa-book-open"></i></a>
+                `;
+                card.appendChild(cardLinks);
 
                 grid.appendChild(card);
             });
         }
 
-        // 🎯 3. 탭 클릭 시 실시간 필터링 이벤트 함수
         function setupTabs() {
             const tabs = document.querySelectorAll('.tab-btn');
             const today = new Date();
 
             tabs.forEach(tab => {
                 tab.addEventListener('click', (e) => {
-                    // 활성화 탭 디자인 변경
                     tabs.forEach(t => t.classList.remove('active'));
                     e.target.classList.add('active');
 
@@ -159,13 +161,10 @@
                     if (filter === 'all') {
                         filteredGames = allGames;
                     } else if (filter === 'released') {
-                        // 오늘 날짜 기준으로 이미 출시된 게임
                         filteredGames = allGames.filter(game => game.released && new Date(game.released) <= today);
                     } else if (filter === 'upcoming') {
-                        // 오늘 날짜 기준으로 출시 예정이거나 출시일이 아직 안 정해진 게임
                         filteredGames = allGames.filter(game => !game.released || new Date(game.released) > today);
                     } else if (filter === 'coop') {
-                        // 태그 중 'co-op'을 포함하고 있는 게임
                         filteredGames = allGames.filter(game => game.tags && game.tags.some(tag => tag.slug === 'co-op'));
                     }
 
