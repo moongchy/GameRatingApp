@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameRating - 게임 레이팅 사이트</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-8">
+    <header class="max-w-6xl mx-auto mb-12 text-center">
+        <h1 class="text-4xl font-bold mb-4 text-purple-400">🎮 GameRating</h1>
+        <p class="text-gray-400 mb-8">최신 게임 정보와 한글 지원 여부를 한눈에!</p>
+        
+        <div class="flex flex-wrap justify-center gap-3">
+            <button class="bg-purple-600 px-4 py-2 rounded-full hover:bg-purple-500">전체</button>
+            <button class="bg-gray-800 px-4 py-2 rounded-full hover:bg-gray-700">최근 2년 출시</button>
+            <button class="bg-gray-800 px-4 py-2 rounded-full hover:bg-gray-700">올해 예정작</button>
+            <button class="bg-gray-800 px-4 py-2 rounded-full hover:bg-gray-700">한국어 지원 🇰🇷</button>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div class="bg-gray-800 rounded-xl overflow-hidden border border-gray-700 hover:scale-105 transition shadow-lg">
+            <img src="https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=800" class="w-full h-48 object-cover">
+            <div class="p-5">
+                <div class="flex justify-between items-start mb-2">
+                    <h2 class="text-xl font-bold">엘든 링: 황금 나무의 그림자</h2>
+                    <span class="bg-yellow-500 text-black font-bold px-2 py-1 rounded">95</span>
+                </div>
+                <p class="text-sm text-gray-400 mb-4">발매일: 2024.06.21</p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="bg-blue-600 text-xs px-2 py-1 rounded">싱글/코옵</span>
+                    <span class="bg-green-600 text-xs px-2 py-1 rounded text-white font-bold">한국어 지원 ✅</span>
+                </div>
+                <button class="w-full mt-6 bg-gray-700 py-2 rounded hover:bg-gray-600 transition">스팀 페이지 보기</button>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 rounded-xl overflow-hidden border border-gray-700 hover:scale-105 transition shadow-lg">
+            <img src="https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800" class="w-full h-48 object-cover">
+            <div class="p-5">
+                <div class="flex justify-between items-start mb-2">
+                    <h2 class="text-xl font-bold">바이오하자드 RE:4</h2>
+                    <span class="bg-yellow-500 text-black font-bold px-2 py-1 rounded">93</span>
+                </div>
+                <p class="text-sm text-gray-400 mb-4">발매일: 2023.03.24</p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="bg-blue-600 text-xs px-2 py-1 rounded">싱글 전용</span>
+                    <span class="bg-green-600 text-xs px-2 py-1 rounded text-white font-bold">한국어 지원 ✅</span>
+                </div>
+                <button class="w-full mt-6 bg-gray-700 py-2 rounded hover:bg-gray-600 transition">스팀 페이지 보기</button>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
