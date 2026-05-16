@@ -11,13 +11,22 @@
 
     <div class="container">
         <h1>🎮 최신 GOTY 대작 라인업</h1>
+        
+        <div class="tabs">
+            <button class="tab-btn active" data-filter="all">전체보기</button>
+            <button class="tab-btn" data-filter="released">발매 완료</button>
+            <button class="tab-btn" data-filter="upcoming">발매 예정</button>
+            <button class="tab-btn" data-filter="coop">협동</button>
+        </div>
+
         <div class="grid" id="game-grid">
             <div class="loading">게임을 불러오는 중입니다...</div>
         </div>
     </div>
 
     <script>
-        // 영문 태그를 안전하게 한글로 치환
+        let allGames = []; // 서버에서 가져온 전체 데이터를 저장할 배열
+
         function getTagText(slug) {
             if (slug === 'singleplayer') return '싱글';
             if (slug === 'co-op') return '협동';
@@ -26,100 +35,143 @@
         }
 
         async function fetchGames() {
-            const grid = document.getElementById('game-grid');
             try {
                 const res = await fetch('/api/games');
                 const data = await res.json();
 
                 if (!data.results || data.results.length === 0) {
-                    grid.innerHTML = '<div class="loading">표시할 AAA 게임이 없습니다.</div>';
+                    document.getElementById('game-grid').innerHTML = '<div class="loading">표시할 AAA 게임이 없습니다.</div>';
                     return;
                 }
 
-                grid.innerHTML = ''; // 로딩 문구 삭제
-
-                data.results.forEach(game => {
-                    const card = document.createElement('div');
-                    card.className = 'card';
-
-                    // 메타크리틱 점수 스타일 예외 처리
-                    const isTbd = game.metacritic === 'TBD';
-                    const scoreClass = isTbd ? 'score tbd' : 'score';
-
-                    // 플랫폼 이름 추출
-                    const platformNames = game.parent_platforms 
-                        ? game.parent_platforms.map(p => p.platform.name).join(', ')
-                        : 'PC, Console';
-
-                    // 외부 링크 인코딩
-                    const encodedName = encodeURIComponent(game.name);
-
-                    // 🎯 안전하게 노드를 하나씩 생성 (CSP 오류 원천 차단 방식)
-                    const wrapper = document.createElement('div');
-                    
-                    const img = document.createElement('img');
-                    img.className = 'card-img';
-                    img.src = game.background_image || 'https://via.placeholder.com/300x180';
-                    img.alt = game.name;
-                    wrapper.appendChild(img);
-
-                    const content = document.createElement('div');
-                    content.className = 'card-content';
-
-                    const title = document.createElement('div');
-                    title.className = 'card-title';
-                    title.textContent = game.name;
-                    content.appendChild(title);
-
-                    const platforms = document.createElement('div');
-                    platforms.className = 'platforms';
-                    platforms.innerHTML = `<i class="fa-solid fa-gamepad"></i> ${platformNames}`;
-                    content.appendChild(platforms);
-
-                    const metaInfo = document.createElement('div');
-                    metaInfo.className = 'meta-info';
-                    metaInfo.innerHTML = `
-                        <span class="released">${game.released || '출시일 미정'}</span>
-                        <span class="${scoreClass}">${game.metacritic}</span>
-                    `;
-                    content.appendChild(metaInfo);
-
-                    const tagContainer = document.createElement('div');
-                    tagContainer.className = 'tag-container';
-                    if (game.tags && game.tags.length > 0) {
-                        game.tags.forEach(tag => {
-                            const badge = document.createElement('span');
-                            badge.className = `badge ${tag.slug}`;
-                            badge.textContent = getTagText(tag.slug);
-                            tagContainer.appendChild(badge);
-                        });
-                    } else {
-                        const badge = document.createElement('span');
-                        badge.className = 'badge singleplayer';
-                        badge.textContent = '싱글';
-                        tagContainer.appendChild(badge);
-                    }
-                    content.appendChild(tagContainer);
-                    wrapper.appendChild(content);
-                    card.appendChild(wrapper);
-
-                    // 링크 영역 추가
-                    const cardLinks = document.createElement('div');
-                    cardLinks.className = 'card-links';
-                    cardLinks.innerHTML = `
-                        <a href="https://store.steampowered.com/search/?term=${encodedName}" target="_blank" class="icon-link steam" title="스팀"><i class="fa-brands fa-steam"></i></a>
-                        <a href="https://www.youtube.com/results?search_query=${encodedName}+official+trailer" target="_blank" class="icon-link youtube" title="유튜브"><i class="fa-brands fa-youtube"></i></a>
-                        <a href="https://namu.wiki/w/${encodedName}" target="_blank" class="icon-link namu" title="나무위키"><i class="fa-solid fa-book-open"></i></a>
-                    `;
-                    card.appendChild(cardLinks);
-
-                    grid.appendChild(card);
-                });
+                allGames = data.results; // 데이터 전역 저장
+                renderGames(allGames);   // 초기 화면 렌더링
+                setupTabs();             // 탭 이벤트 연결
 
             } catch (error) {
                 console.error(error);
-                grid.innerHTML = '<div class="loading">데이터를 가져오는 중 오류가 발생했습니다.</div>';
+                document.getElementById('game-grid').innerHTML = '<div class="loading">데이터를 가져오는 중 오류가 발생했습니다.</div>';
             }
+        }
+
+        // 🎯 게임 카드 출력 및 필터링 핵심 로직
+        function renderGames(gamesList) {
+            const grid = document.getElementById('game-grid');
+            grid.innerHTML = '';
+
+            if (gamesList.length === 0) {
+                grid.innerHTML = '<div class="loading">해당 조건의 게임이 없습니다.</div>';
+                return;
+            }
+
+            const today = new Date();
+
+            gamesList.forEach(game => {
+                const card = document.createElement('div');
+                card.className = 'card';
+
+                const isTbd = game.metacritic === 'TBD';
+                const scoreClass = isTbd ? 'score tbd' : 'score';
+
+                const platformNames = game.parent_platforms 
+                    ? game.parent_platforms.map(p => p.platform.name).join(', ')
+                    : 'PC, Console';
+
+                const encodedName = encodeURIComponent(game.name);
+
+                // 스태틱 콘텐츠 영역
+                const wrapper = document.createElement('div');
+                
+                const img = document.createElement('img');
+                img.className = 'card-img';
+                img.src = game.background_image || 'https://via.placeholder.com/300x180';
+                img.alt = game.name;
+                wrapper.appendChild(img);
+
+                const content = document.createElement('div');
+                content.className = 'card-content';
+
+                const title = document.createElement('div');
+                title.className = 'card-title';
+                title.textContent = game.name;
+                content.appendChild(title);
+
+                const platforms = document.createElement('div');
+                platforms.className = 'platforms';
+                platforms.innerHTML = `<i class="fa-solid fa-gamepad"></i> ${platformNames}`;
+                content.appendChild(platforms);
+
+                const metaInfo = document.createElement('div');
+                metaInfo.className = 'meta-info';
+                metaInfo.innerHTML = `
+                    <span class="released">${game.released || '출시일 미정'}</span>
+                    <span class="${scoreClass}">${game.metacritic}</span>
+                `;
+                content.appendChild(metaInfo);
+
+                // 🎯 1. 외부 링크 영역을 카드 정보창 안으로 자연스럽게 포함
+                const cardLinks = document.createElement('div');
+                cardLinks.className = 'card-links';
+                cardLinks.innerHTML = `
+                    <a href="https://store.steampowered.com/search/?term=${encodedName}" target="_blank" class="icon-link steam" title="스팀"><i class="fa-brands fa-steam"></i></a>
+                    <a href="https://www.youtube.com/results?search_query=${encodedName}+official+trailer" target="_blank" class="icon-link youtube" title="유튜브"><i class="fa-brands fa-youtube"></i></a>
+                    <a href="https://namu.wiki/w/${encodedName}" target="_blank" class="icon-link namu" title="나무위키"><i class="fa-solid fa-book-open"></i></a>
+                `;
+                content.appendChild(cardLinks);
+
+                const tagContainer = document.createElement('div');
+                tagContainer.className = 'tag-container';
+                if (game.tags && game.tags.length > 0) {
+                    game.tags.forEach(tag => {
+                        const badge = document.createElement('span');
+                        badge.className = `badge ${tag.slug}`;
+                        badge.textContent = getTagText(tag.slug);
+                        tagContainer.appendChild(badge);
+                    });
+                } else {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge singleplayer';
+                    badge.textContent = '싱글';
+                    tagContainer.appendChild(badge);
+                }
+                content.appendChild(tagContainer);
+                wrapper.appendChild(content);
+                card.appendChild(wrapper);
+
+                grid.appendChild(card);
+            });
+        }
+
+        // 🎯 3. 탭 클릭 시 실시간 필터링 이벤트 함수
+        function setupTabs() {
+            const tabs = document.querySelectorAll('.tab-btn');
+            const today = new Date();
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', (e) => {
+                    // 활성화 탭 디자인 변경
+                    tabs.forEach(t => t.classList.remove('active'));
+                    e.target.classList.add('active');
+
+                    const filter = e.target.getAttribute('data-filter');
+                    let filteredGames = [];
+
+                    if (filter === 'all') {
+                        filteredGames = allGames;
+                    } else if (filter === 'released') {
+                        // 오늘 날짜 기준으로 이미 출시된 게임
+                        filteredGames = allGames.filter(game => game.released && new Date(game.released) <= today);
+                    } else if (filter === 'upcoming') {
+                        // 오늘 날짜 기준으로 출시 예정이거나 출시일이 아직 안 정해진 게임
+                        filteredGames = allGames.filter(game => !game.released || new Date(game.released) > today);
+                    } else if (filter === 'coop') {
+                        // 태그 중 'co-op'을 포함하고 있는 게임
+                        filteredGames = allGames.filter(game => game.tags && game.tags.some(tag => tag.slug === 'co-op'));
+                    }
+
+                    renderGames(filteredGames);
+                });
+            });
         }
 
         window.addEventListener('DOMContentLoaded', fetchGames);
