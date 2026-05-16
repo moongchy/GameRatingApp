@@ -12,26 +12,33 @@ module.exports = async (req, res) => {
 
     try {
         const now = new Date();
-        // 🎯 정확히 '최근 1년 전'부터 '현재'까지로 날짜 범위를 칼같이 제한 (2025~2026년 타겟)
         const oneYearAgo = new Date();
         oneYearAgo.setFullYear(now.getFullYear() - 1);
         
         const fromDate = oneYearAgo.toISOString().split('T')[0];
         const toDate = now.toISOString().split('T')[0];
 
-        // 🎯 1. 최근 1년간 출시된 게임을 최신 출시순(-released)으로 40개 가져옴
-        const rawgUrl = `https://api.rawg.io/api/games?key=${RAWG_KEY}&dates=${fromDate},${toDate}&ordering=-released&page_size=40`;
+        // 🎯 1. 네가 좋아하는 게임들의 공통점 저격
+        // - platforms=187,186 (PS5, Xbox Series X/S 필수 출시작만 선별 -> 인디 게임 완벽 자동 차단)
+        // - genres=action,role-playing-games-rpg (액션 및 RPG 장르 고정)
+        // - ordering=-released (최근 1년 내 출시작 최신순 정렬)
+        const rawgUrl = `https://api.rawg.io/api/games?key=${RAWG_KEY}&dates=${fromDate},${toDate}&platforms=187,186&genres=action,role-playing-games-rpg&ordering=-released&page_size=40`;
+        
         const rawgRes = await fetch(rawgUrl);
         const rawgData = await rawgRes.json();
 
-        // 🎯 2. AAA급 필터링: 유저 관심도 수치(added)가 최소 1,500개 이상인 검증된 대작만 추출
-        const aaaGames = (rawgData.results || []).filter(game => {
-            return game.added && game.added >= 1500; 
+        // 🎯 2. 현실적인 콘솔 대작 컷트라인 (유저 관심도 500 이상만 통과)
+        let aaaGames = (rawgData.results || []).filter(game => {
+            return game.added && game.added >= 500; 
         });
 
-        // 3. 스팀 API를 연동하여 평점 보완 및 [싱글/협동] 카테고리 명시하기
+        // 기대작이나 신작 누락 방지용 안전장치 (데이터가 너무 적으면 상위 노출)
+        if (aaaGames.length < 5) {
+            aaaGames = (rawgData.results || []).slice(0, 15);
+        }
+
+        // 3. 스팀 API 크로스 매칭으로 싱글/협동(코옵) 태그 명시하기
         const updatedGames = await Promise.all(aaaGames.map(async (game) => {
-            // 프론트엔드가 태그를 읽을 수 있도록 배열 초기화
             game.tags = [];
 
             try {
@@ -52,40 +59,32 @@ module.exports = async (req, res) => {
                             game.metacritic = details.metacritic.score;
                         }
 
-                        // 🎯 스팀 카테고리 분석 후 싱글/협동 여부를 프론트엔드 태그 포맷으로 강제 명시
+                        // 🎯 스팀 카테고리에서 싱글/코옵/멀티 정밀 추출 후 배지 데이터 주입
                         if (details.categories) {
                             details.categories.forEach(cat => {
-                                if (cat.id === 2) {
-                                    game.tags.push({ name: "Singleplayer", slug: "singleplayer" });
-                                }
-                                if (cat.id === 9 || cat.id === 24) {
-                                    game.tags.push({ name: "Co-op", slug: "co-op" });
-                                }
-                                if (cat.id === 1 || cat.id === 38) {
-                                    game.tags.push({ name: "Multiplayer", slug: "multiplayer" });
-                                }
+                                if (cat.id === 2) game.tags.push({ name: "Singleplayer", slug: "singleplayer" });
+                                if (cat.id === 9 || cat.id === 24) game.tags.push({ name: "Co-op", slug: "co-op" });
+                                if (cat.id === 1 || cat.id === 38) game.tags.push({ name: "Multiplayer", slug: "multiplayer" });
                             });
                         }
                     }
                 }
             } catch (e) {
-                // 에러 시 무시
+                // 에러 패스
             }
 
-            // 스팀에서 태그를 못 가져왔을 때를 대비한 RAWG 데이터 기반 자체 백업 명시
-            if (game.tags.length === 0 && game.genres) {
-                // 장르나 슬러그 분석을 통해 최소한의 싱글 여부 방어선 구축
+            // 스팀 검색에 안 걸리는 PS5 독점작 등의 경우, RAWG 데이터를 기반으로 싱글플레이 태그 기본 방어
+            if (game.tags.length === 0) {
                 game.tags.push({ name: "Singleplayer", slug: "singleplayer" });
             }
 
-            // 중복 태그 제거 및 메타 평점 예외 처리
+            // 중복 제거 및 메타 평점 예외 처리
             game.tags = Array.from(new Map(game.tags.map(item => [item.slug, item])).values());
             game.metacritic = game.metacritic || "TBD";
             
             return game;
         }));
 
-        // Vercel 10초 타임아웃 방지를 위해 상위 30개만 최종 반환
         return res.status(200).json({ results: updatedGames.slice(0, 30) });
 
     } catch (error) {
