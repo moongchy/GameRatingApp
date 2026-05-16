@@ -33,10 +33,9 @@
         let allFetchedGames = []; 
         let currentTab = 'recent'; 
 
-        // 1. 플랫폼 중복 버그 해결 (Set을 사용해 중복 배지 제거)
+        // 1. 플랫폼 중복 배지 제거 해결
         function getPlatformBadges(platforms) {
             if (!platforms) return '';
-            
             const badgeSet = new Set();
             platforms.forEach(p => {
                 const name = p.platform.name.toLowerCase();
@@ -45,7 +44,6 @@
                 if (name.includes('xbox')) badgeSet.add(`<span class="bg-green-600/20 text-green-400 text-[10px] px-2 py-0.5 rounded border border-green-500/30 font-bold">Xbox</span>`);
                 if (name.includes('nintendo')) badgeSet.add(`<span class="bg-red-600/20 text-red-400 text-[10px] px-2 py-0.5 rounded border border-red-500/30 font-bold">Switch</span>`);
             });
-            
             return Array.from(badgeSet).join(' ');
         }
 
@@ -55,137 +53,3 @@
             try {
                 const response = await fetch('./api.txt');
                 if (!response.ok) throw new Error();
-                
-                const text = await response.text();
-                const lines = text.split('\n');
-                
-                lines.forEach(line => {
-                    const [key, value] = line.split('=');
-                    if (key && value) {
-                        if (key.trim() === 'RAWG') RAWG_KEY = value.trim();
-                        if (key.trim() === 'STEAM') STEAM_KEY = value.trim();
-                    }
-                });
-
-                if (!RAWG_KEY) {
-                    statusEl.innerText = `● api.txt에서 RAWG 키를 찾을 수 없습니다.`;
-                    return;
-                }
-
-                statusEl.innerText = `● LIVE 데이터 동기화 중...`;
-                fetchGames(); 
-            } catch (err) {
-                statusEl.innerText = `● api.txt 로드 실패. 파일 구성을 확인해주세요.`;
-            }
-        }
-
-        async function fetchGames() {
-            try {
-                const now = new Date();
-                const fromDate = new Date(new Date().setFullYear(now.getFullYear() - 1)).toISOString().split('T')[0];
-                const toDate = new Date(new Date().setFullYear(now.getFullYear() + 1)).toISOString().split('T')[0];
-
-                // 인기도순 정렬로 50개 확보
-                const url = `https://api.rawg.io/api/games?key=${RAWG_KEY}&dates=${fromDate},${toDate}&ordering=-added&page_size=50`;
-                const response = await fetch(url);
-                const data = await response.json();
-
-                // 트리플 조건 필터링
-                allFetchedGames = data.results.filter(game => {
-                    const isHighScore = game.metacritic >= 75;    
-                    const isPopular = game.added >= 2000;          
-                    const isUpcoming = game.metacritic === null;   
-                    return isHighScore || isPopular || isUpcoming;
-                });
-
-                updateView();
-                document.getElementById('status').innerText = `● LIVE: 실시간 데이터 동기화 완료`;
-            } catch (err) {
-                console.error(err);
-                document.getElementById('status').innerText = `● 데이터 로드 실패`;
-            }
-        }
-
-        function updateView() {
-            const grid = document.getElementById('gameGrid');
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-            const todayStr = new Date().toISOString().split('T')[0];
-
-            const filtered = allFetchedGames.filter(game => {
-                const matchesSearch = game.name.toLowerCase().includes(searchTerm);
-                const isUpcoming = game.released ? game.released > todayStr : true;
-                
-                // [4. 최신 탭 TBD 폭탄 제거] 
-                // 최신 게임 탭에서는 점수가 채점되었거나 이미 출시가 완료된 게임만 노출되도록 필터링 보완
-                const matchesTab = (currentTab === 'recent' && !isUpcoming && game.released) || (currentTab === 'upcoming' && isUpcoming);
-
-                return matchesTab && matchesSearch;
-            });
-
-            if (filtered.length === 0) {
-                grid.innerHTML = `<div class="col-span-full text-center py-20 text-gray-500">조건에 맞는 AAA 게임이 없습니다.</div>`;
-                return;
-            }
-
-            grid.innerHTML = filtered.map(game => {
-                const namuUrl = `https://namu.wiki/w/${encodeURIComponent(game.name)}`;
-                const steamLink = game.platforms && game.platforms.find(p => p.platform.slug === 'pc') ? `https://store.steampowered.com/search/?term=${encodeURIComponent(game.name)}` : '#';
-                const platformHtml = getPlatformBadges(game.platforms);
-                const isUpcoming = game.released ? game.released > todayStr : true;
-
-                // [3. 미출시작 위키 버튼 숨김 처리]
-                const wikiButtonHtml = isUpcoming 
-                    ? `<div class="flex flex-col items-center justify-center gap-2 bg-gray-800/20 py-3 rounded-2xl border border-gray-700/30 opacity-40 cursor-not-allowed">
-                        <i data-lucide="lock" class="w-5 h-5 text-gray-500"></i>
-                        <span class="text-[9px] font-black text-gray-500">미발매</span>
-                       </div>`
-                    : `<a href="${namuUrl}" target="_blank" class="flex flex-col items-center justify-center gap-2 bg-[#00a495]/10 hover:bg-[#00a495]/30 py-3 rounded-2xl transition border border-[#00a495]/20">
-                        <i data-lucide="book-text" class="w-5 h-5 text-[#00a495]"></i>
-                        <span class="text-[9px] font-black text-[#00a495]">WIKI</span>
-                       </a>`;
-                
-                return `
-                    <div class="bg-[#1a1d23] rounded-3xl overflow-hidden border border-gray-800 hover:border-blue-500/50 transition-all duration-500 shadow-2xl group">
-                        <div class="relative overflow-hidden">
-                            <img src="${game.background_image || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800'}" class="w-full h-52 object-cover group-hover:scale-110 transition duration-700">
-                            <div class="absolute top-4 right-4 bg-black/60 backdrop-blur-lg text-green-400 font-black px-4 py-1.5 rounded-2xl border border-white/10 shadow-xl">
-                                ${game.metacritic || 'TBD'}
-                            </div>
-                        </div>
-                        <div class="p-8">
-                            <h2 class="text-xl font-bold mb-2 line-clamp-1 group-hover:text-blue-400 transition">${game.name}</h2>
-                            <div class="flex flex-wrap gap-1 mb-4">${platformHtml}</div>
-                            
-                            <p class="text-gray-500 text-sm flex items-center gap-2"><i data-lucide="calendar" class="w-4 h-4"></i> ${game.released || '발매일 미정'}</p>
-                            <p class="text-gray-500 text-xs mt-2 mb-6">🔥 ${game.added ? game.added.toLocaleString() : 0} 관심 등록</p>
-                            
-                            <div class="grid grid-cols-3 gap-3">
-                                <a href="${steamLink}" target="_blank" class="flex flex-col items-center justify-center gap-2 bg-[#171a21] hover:bg-blue-600/20 py-3 rounded-2xl transition border border-white/5">
-                                    <img src="https://cdn.simpleicons.org/steam/white" class="w-5 h-5">
-                                    <span class="text-[9px] font-black">STEAM</span>
-                                </a>
-                                <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(game.name + ' trailer')}" target="_blank" class="flex flex-col items-center justify-center gap-2 bg-[#282828] hover:bg-red-600/20 py-3 rounded-2xl transition border border-white/5">
-                                    <img src="https://cdn.simpleicons.org/youtube/white" class="w-5 h-5">
-                                    <span class="text-[9px] font-black">TRAILER</span>
-                                </a>
-                                ${wikiButtonHtml}
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-            lucide.createIcons();
-        }
-
-        function switchTab(tab) {
-            currentTab = tab;
-            document.getElementById('tab-recent').className = tab === 'recent' ? 'px-8 py-3 rounded-xl bg-blue-600 font-bold transition shadow-lg shadow-blue-500/20' : 'px-8 py-3 rounded-xl bg-gray-800 text-gray-400 hover:bg-gray-700 font-bold transition';
-            document.getElementById('tab-upcoming').className = tab === 'upcoming' ? 'px-8 py-3 rounded-xl bg-blue-600 font-bold transition shadow-lg shadow-blue-500/20' : 'px-8 py-3 rounded-xl bg-gray-800 text-gray-400 hover:bg-gray-700 font-bold transition';
-            updateView();
-        }
-
-        document.getElementById('searchInput').addEventListener('input', updateView);
-        window.onload = initSite;
-    </script>
-</body>
-</html>
