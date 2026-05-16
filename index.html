@@ -11,7 +11,7 @@
 
     <header class="max-w-6xl mx-auto mb-12 text-center">
         <h1 class="text-5xl font-black mb-4 bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-600">GameRating LIVE</h1>
-        <p id="status" class="text-gray-500 font-mono text-sm uppercase">키 파일 확인 중...</p>
+        <p id="status" class="text-gray-500 font-mono text-sm uppercase">Vercel 백엔드 연결 중...</p>
         
         <div class="max-w-md mx-auto my-8">
             <input type="text" id="searchInput" placeholder="Search game title..." 
@@ -28,11 +28,9 @@
         </main>
 
     <script>
-        let RAWG_KEY = '';
         let allFetchedGames = []; 
         let currentTab = 'recent'; 
 
-        // 1. 플랫폼 중복 배지 해결 (Set 객체 사용)
         function getPlatformBadges(platforms) {
             if (!platforms) return '';
             const badgeSet = new Set();
@@ -46,50 +44,24 @@
             return Array.from(badgeSet).join(' ');
         }
 
-        // api.txt 파싱 및 통합 로드 (글자 없이 키값만 단랑 있을 때 대응)
         async function initSite() {
-            const statusEl = document.getElementById('status');
-            try {
-                const response = await fetch('./api.txt');
-                if (!response.ok) throw new Error();
-                
-                const text = await response.text();
-                RAWG_KEY = text.trim(); // 앞뒤 공백 및 줄바꿈 완전 제거 후 할당
-
-                if (!RAWG_KEY) {
-                    statusEl.innerText = `● api.txt 파일이 비어있습니다.`;
-                    return;
-                }
-
-                statusEl.innerText = `● RAWG API 실시간 연결 중...`;
-                fetchGames(); 
-            } catch (err) {
-                statusEl.innerText = `● api.txt 로드 실패. 파일 위치를 확인해주세요.`;
-            }
+            fetchGames();
         }
 
+        // 💡 우리 Vercel 백엔드 API 서버에서 정제된 데이터를 땡겨옴
         async function fetchGames() {
             try {
-                const now = new Date();
-                const fromDate = new Date(new Date().setFullYear(now.getFullYear() - 1)).toISOString().split('T')[0];
-                const toDate = new Date(new Date().setFullYear(now.getFullYear() + 1)).toISOString().split('T')[0];
-
-                const url = `https://api.rawg.io/api/games?key=${RAWG_KEY}&dates=${fromDate},${toDate}&ordering=-added&page_size=50`;
-                const response = await fetch(url);
+                document.getElementById('status').innerText = `● 백엔드가 메타크리틱 점수 검증 중...`;
+                
+                const response = await fetch(`/api/games?tab=${currentTab}`);
                 const data = await response.json();
 
-                allFetchedGames = data.results.filter(game => {
-                    const isHighScore = game.metacritic >= 75;    
-                    const isPopular = game.added >= 2000;          
-                    const isUpcoming = game.metacritic === null;   
-                    return isHighScore || isPopular || isUpcoming;
-                });
-
+                allFetchedGames = data.results || [];
                 updateView();
-                document.getElementById('status').innerText = `● LIVE: 실시간 AAA 데이터 동기화 완료`;
+                document.getElementById('status').innerText = `● LIVE: Vercel 백엔드 우회 동기화 완료`;
             } catch (err) {
                 console.error(err);
-                document.getElementById('status').innerText = `● 데이터 로드 실패`;
+                document.getElementById('status').innerText = `● 백엔드 통신 실패`;
             }
         }
 
@@ -99,11 +71,7 @@
             const todayStr = new Date().toISOString().split('T')[0];
 
             const filtered = allFetchedGames.filter(game => {
-                const matchesSearch = game.name.toLowerCase().includes(searchTerm);
-                const isUpcoming = game.released ? game.released > todayStr : true;
-                const matchesTab = (currentTab === 'recent' && !isUpcoming && game.released) || (currentTab === 'upcoming' && isUpcoming);
-
-                return matchesTab && matchesSearch;
+                return game.name.toLowerCase().includes(searchTerm);
             });
 
             if (filtered.length === 0) {
@@ -140,7 +108,6 @@
                         <div class="p-8">
                             <h2 class="text-xl font-bold mb-1 line-clamp-1 group-hover:text-blue-400 transition" title="${game.name}">${game.name}</h2>
                             <div class="mb-3 flex gap-1">${genresHtml}</div>
-                            
                             <div class="flex flex-wrap gap-1 mb-4">${platformHtml}</div>
                             
                             <p class="text-gray-500 text-sm flex items-center gap-2"><i data-lucide="calendar" class="w-4 h-4"></i> ${game.released || 'TBD'}</p>
@@ -168,7 +135,7 @@
             currentTab = tab;
             document.getElementById('tab-recent').className = tab === 'recent' ? 'px-8 py-3 rounded-xl bg-blue-600 font-bold transition shadow-lg shadow-blue-500/20' : 'px-8 py-3 rounded-xl bg-gray-800 text-gray-400 hover:bg-gray-700 font-bold transition';
             document.getElementById('tab-upcoming').className = tab === 'upcoming' ? 'px-8 py-3 rounded-xl bg-blue-600 font-bold transition shadow-lg shadow-blue-500/20' : 'px-8 py-3 rounded-xl bg-gray-800 text-gray-400 hover:bg-gray-700 font-bold transition';
-            updateView();
+            fetchGames(); // 탭 바뀔 때 백엔드에 새로운 기준 데이터 요청
         }
 
         document.getElementById('searchInput').addEventListener('input', updateView);
