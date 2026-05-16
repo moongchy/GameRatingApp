@@ -111,23 +111,35 @@
         .badge.co-op { background-color: rgba(245, 158, 11, 0.15); color: var(--coop-color); border: 1px solid var(--coop-color); }
         .badge.multiplayer { background-color: rgba(99, 102, 241, 0.15); color: var(--multi-color); border: 1px solid var(--multi-color); }
         
-        /* 외부 링크 아이콘 영역 스타일 */
+        /* 🎯 외부 링크 영역 레이아웃 및 크기 업그레이드 */
         .card-links {
             display: flex;
             justify-content: space-around;
-            padding: 12px var(--card-bg);
-            background-color: rgba(0, 0, 0, 0.2);
+            align-items: center;
+            padding: 14px 0;
+            background-color: rgba(0, 0, 0, 0.4); /* 조금 더 어둡게 깔아서 대비감 증가 */
             border-top: 1px solid rgba(255, 255, 255, 0.05);
         }
         .icon-link {
-            color: var(--text-muted);
-            font-size: 1.2rem;
-            transition: color 0.2s;
+            color: #a0aec0; /* 기본 아이콘 색상을 더 밝게 보정 */
+            font-size: 1.5rem; /* 아이콘 크기를 기존보다 대폭 확대 */
+            transition: all 0.2s ease-in-out;
             text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
         }
-        .icon-link:hover.steam { color: #1b2838; }
-        .icon-link:hover.youtube { color: #ff0000; }
-        .icon-link:hover.namu { color: #00a495; }
+        /* 마우스 올렸을 때 배경 슬쩍 들어오면서 선명한 브랜드 컬러 활성화 */
+        .icon-link:hover {
+            transform: scale(1.15);
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        .icon-link:hover.steam { color: #66c0f4; } /* 스팀 시그니처 연한 파랑 */
+        .icon-link:hover.youtube { color: #ff0000; } /* 유튜브 레드 */
+        .icon-link:hover.namu { color: #00a495; } /* 나무위키 민트 */
 
         .loading {
             text-align: center;
@@ -148,14 +160,14 @@
     </div>
 
     <script>
-        // 영문 슬러그를 친숙한 한글 이름으로 맵핑하는 함수
+        // 🎯 1. '플레이' 단어를 제외하고 깔끔하게 한글 매핑 수정
         function translateTagName(slug) {
             const mapper = {
-                'singleplayer': '싱글플레이',
-                'co-op': '협동 플레이',
-                'multiplayer': '멀티플레이'
+                'singleplayer': '싱글',
+                'co-op': '협동',
+                'multiplayer': '멀티'
             };
-            return mapper[slug] || '싱글플레이';
+            return mapper[slug] || '싱글';
         }
 
         async function fetchGames() {
@@ -177,17 +189,14 @@
 
                     const scoreClass = game.metacritic === 'TBD' ? 'score tbd' : 'score';
 
-                    // 🎯 1. 플레이방식 태그 한글 변환 적용
                     const tagsHtml = game.tags && game.tags.length > 0 
                         ? game.tags.map(tag => `<span class="badge ${tag.slug}">${translateTagName(tag.slug)}</span>`).join('')
-                        : '<span class="badge singleplayer">싱글플레이</span>';
+                        : '<span class="badge singleplayer">싱글</span>';
 
-                    // 🎯 2. 플랫폼 이름 추출 및 가공 (예: PC, PS5, Xbox Series X)
                     const platformNames = game.parent_platforms 
                         ? game.parent_platforms.map(p => p.platform.name).join(', ')
                         : 'PC, Console';
 
-                    // 🎯 3. 외부 링크 URL 동적 생성 (스팀, 유튜브, 나무위키)
                     const encodedName = encodeURIComponent(game.name);
                     const steamUrl = `https://store.steampowered.com/search/?term=${encodedName}`;
                     const youtubeUrl = `https://www.youtube.com/results?search_query=${encodedName}+official+trailer`;
@@ -209,21 +218,4 @@
                             </div>
                         </div>
                         <div class="card-links">
-                            <a href="${steamUrl}" target="_blank" class="icon-link steam" title="스팀 페이지"><i class="fa-brands fa-steam"></i></a>
-                            <a href="${youtubeUrl}" target="_blank" class="icon-link youtube" title="유튜브 트레일러"><i class="fa-brands fa-youtube"></i></a>
-                            <a href="${namuUrl}" target="_blank" class="icon-link namu" title="나무위키 검색"><i class="fa-solid fa-book-open"></i></a>
-                        </div>
-                    `;
-                    grid.appendChild(card);
-                });
-
-            } catch (error) {
-                console.error(error);
-                grid.innerHTML = '<div class="loading">데이터를 가져오는 중 오류가 발생했습니다.</div>';
-            }
-        }
-
-        window.addEventListener('DOMContentLoaded', fetchGames);
-    </script>
-</body>
-</html>
+                            <a href="${steamUrl}" target="_blank" class="icon-link steam" title="스팀 페이지"><i class="fa-brands
