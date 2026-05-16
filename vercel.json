@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/api/games", "destination": "/api/games.js" }
+  ]
+}
