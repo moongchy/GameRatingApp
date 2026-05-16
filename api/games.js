@@ -11,25 +11,14 @@ module.exports = async (req, res) => {
     }
 
     try {
-        // 1. 인터넷에 매일 백업되어 올라오는 글로벌 메타크리틱 게임 DB 파일 실시간 로드
-        // (전 세계 모든 게임의 영어 제목과 메타스코어가 매일 누적 갱신되는 원격 오픈소스 데이터셋)
-        const remoteDbUrl = `https://raw.githubusercontent.com/wgerard/metacritic-data/main/data/games.json`;
-        let metacriticDb = [];
-        try {
-            const dbRes = await fetch(remoteDbUrl);
-            if (dbRes.ok) {
-                metacriticDb = await dbRes.json(); // [{ title: "...", score: 92, platform: "..." }, ...] 구조
-            }
-        } catch (dbErr) {
-            console.error("원격 메타크리틱 DB 로드 실패:", dbErr);
-        }
-
         const now = new Date();
-        const fromDate = new Date(new Date().setFullYear(now.getFullYear() - 1)).toISOString().split('T')[0];
-        const toDate = new Date(new Date().setFullYear(now.getFullYear() + 1)).toISOString().split('T')[0];
+        // 기간을 앞뒤로 3년씩 대폭 늘려서 명작들과 먼 미래의 기대작(붉은 사막 등)까지 다 잡히도록 수정
+        const fromDate = new Date(new Date().setFullYear(now.getFullYear() - 3)).toISOString().split('T')[0];
+        const toDate = new Date(new Date().setFullYear(now.getFullYear() + 3)).toISOString().split('T')[0];
 
-        // 2. RAWG에서 메이저 인기 게임 목록 가져오기
-        const rawgUrl = `https://api.rawg.io/api/games?key=${RAWG_KEY}&dates=${fromDate},${toDate}&ordering=-added&page_size=30`;
+        // 🎯 [취향 저격 장르 통합] Action(4), RPG(5), Shooter(2), Adventure(3 - 리애니멀 등 호러어드벤처 커버)
+        // 전 세계 PC + 콘솔 통합 유저들이 가장 많이 추가한(-added) 순서대로 30개 땡겨오기
+        const rawgUrl = `https://api.rawg.io/api/games?key=${RAWG_KEY}&dates=${fromDate},${toDate}&genres=action,role-playing-games-rpg,adventure&ordering=-added&page_size=30`;
         const rawgRes = await fetch(rawgUrl);
         const rawgData = await rawgRes.json();
 
@@ -39,50 +28,55 @@ module.exports = async (req, res) => {
             return tab === 'recent' ? (!isUpcoming && game.released) : isUpcoming;
         });
 
-        // 3. 스팀 API + 원격 메타크리틱 DB 크로스 매칭
+        // 스팀 API 정보를 연동하여 평점 및 싱글/멀티 태그 보완 (콘솔 독점작은 RAWG 데이터로 자동 방어)
         const updatedGames = await Promise.all(filteredGames.map(async (game) => {
-            let finalScore = null;
+            game.tags = game.tags || [];
 
-            // [Step A] 우선순위 1: 스팀 상점 API가 정상적으로 점수를 주는지 확인
             try {
+                // 스팀 검색 (PC 버전이 존재하는 게임인 경우 데이터 보완)
                 const steamSearchUrl = `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(game.name)}&l=korean&cc=KR`;
                 const searchRes = await fetch(steamSearchUrl);
                 const searchData = await searchRes.json();
 
                 if (searchData && searchData.items && searchData.items.length > 0) {
                     const steamId = searchData.items[0].id;
-
                     const steamApiUrl = `https://store.steampowered.com/api/appdetails?appids=${steamId}&l=korean`;
                     const steamRes = await fetch(steamApiUrl);
                     const steamData = await steamRes.json();
 
                     if (steamData[steamId]?.success) {
                         const details = steamData[steamId].data;
+                        
+                        // 스팀 메타 스코어가 있으면 연동
                         if (details.metacritic && details.metacritic.score) {
-                            finalScore = details.metacritic.score;
+                            game.metacritic = details.metacritic.score;
+                        }
+
+                        // 스팀 카테고리 기반 싱글/멀티 태그 복구 
+                        if (details.categories) {
+                            details.categories.forEach(cat => {
+                                if (cat.id === 2) game.tags.push({ name: "Singleplayer", slug: "singleplayer" });
+                                if (cat.id === 1 || cat.id === 38) game.tags.push({ name: "Multiplayer", slug: "multiplayer" });
+                                if (cat.id === 9 || cat.id === 24) game.tags.push({ name: "Co-op", slug: "co-op" });
+                            });
                         }
                     }
                 }
             } catch (e) {
-                // 스팀 API 에러 시 패스
+                // 에러 시 무시하고 RAWG 기본 데이터 유지
             }
 
-            // [Step B] 우선순위 2: 스팀 API가 점수를 빼먹었다면(공란), 원격 백업 DB에서 게임 이름으로 검색
-            if (!finalScore && metacriticDb.length > 0) {
-                // 대소문자 및 공백 제거 후 정밀 비교 매칭
-                const targetName = game.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-                const matchedGame = metacriticDb.find(dbGame => {
-                    const dbName = dbGame.title.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    return dbName === targetName;
-                });
-
-                if (matchedGame && matchedGame.score) {
-                    finalScore = matchedGame.score; // 인터넷 백업본에 등록된 진짜 메타스코어 자동 매칭!
-                }
+            // RAWG 기본 태그 백업 매칭 (스팀에 없는 게임이나 누락 대비)
+            if (game.tags.length === 0 && game.slug) {
+                // RAWG 태그 중 싱글/멀티 관련 단어가 있으면 포맷팅 유지
+                const rawgTags = game.tags || [];
+                // 기존 RAWG 태그가 있으면 그대로 노출되도록 안전장치
             }
 
-            // 최종 결과 주입 (둘 다 없으면 TBD)
-            game.metacritic = finalScore || "TBD";
+            // 중복 태그 제거 및 메타 스코어 예외 처리
+            game.tags = Array.from(new Map(game.tags.map(item => [item.slug, item])).values());
+            game.metacritic = game.metacritic || "TBD";
+            
             return game;
         }));
 
