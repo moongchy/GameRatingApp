@@ -1,56 +1,67 @@
 // api/games.js
-export default async function handler(request, response) {
-    // Vercel 금고에 저장해둔 RAWG_KEY 꺼내오기
+module.exports = async (req, res) => {
     const RAWG_KEY = process.env.RAWG_KEY;
-    const { tab = 'recent' } = request.query;
+    const { tab = 'recent' } = req.query;
+
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+
+    if (!RAWG_KEY) {
+        return res.status(500).json({ error: "RAWG_KEY missing" });
+    }
 
     try {
         const now = new Date();
         const fromDate = new Date(new Date().setFullYear(now.getFullYear() - 1)).toISOString().split('T')[0];
         const toDate = new Date(new Date().setFullYear(now.getFullYear() + 1)).toISOString().split('T')[0];
 
-        // 1. RAWG API 호출
-        const rawgUrl = `https://api.rawg.io/api/games?key=${RAWG_KEY}&dates=${fromDate},${toDate}&ordering=-added&page_size=30`;
+        // 1. RAWG에서 게임 목록 땡겨오기
+        const rawgUrl = `https://api.rawg.io/api/games?key=${RAWG_KEY}&dates=${fromDate},${toDate}&ordering=-added&page_size=20`;
         const rawgRes = await fetch(rawgUrl);
         const rawgData = await rawgRes.json();
 
         const todayStr = now.toISOString().split('T')[0];
-
-        // 2. 탭 기준에 맞게 기본 필터링
-        const filteredGames = rawgData.results.filter(game => {
+        const filteredGames = (rawgData.results || []).filter(game => {
             const isUpcoming = game.released ? game.released > todayStr : true;
             return tab === 'recent' ? (!isUpcoming && game.released) : isUpcoming;
         });
 
-        // 3. 💡 핵심: RAWG 점수가 없는(null) 게임 중 상위 5개만 메타크리틱 실시간 크롤링 시도
-        // (서버 과부하 및 대기 시간 단축을 위해 상위 5개 기대작 위주로 방어)
+        // 2. 💡 핵심: 스팀 공식 API를 찔러서 진짜 메타크리틱 점수와 동접자 채워넣기
         const updatedGames = await Promise.all(filteredGames.map(async (game) => {
-            if (!game.metacritic) {
-                try {
-                    // 메타크리틱 상세 페이지 주소 규칙: 게임 슬러그 활용
-                    const metaUrl = `https://www.metacritic.com/game/${game.slug}`;
-                    const metaRes = await fetch(metaUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-                    
-                    if (metaRes.ok) {
-                        const html = await metaRes.text();
-                        // 정규식을 활용해 HTML 내에서 점수 구조 추출
-                        const scoreMatch = html.match(/class="[^"]*c-productScore_score[^"]*"[^>]*>\s*<span>(\d+)<\/span>/);
-                        if (scoreMatch && scoreMatch[1]) {
-                            game.metacritic = parseInt(scoreMatch[1], 10); // 크롤링한 진짜 점수 주입!
+            // RAWG 데이터 내부에서 스팀 상점 주소나 ID 힌트 찾기
+            const steamStore = game.stores?.find(s => s.store.slug === 'steam');
+            
+            if (steamStore && steamStore.store) {
+                // 게임 주소(예: store.steampowered.com/app/292030)에서 숫자 ID만 추출
+                const match = steamStore.url_raw?.match(/\/app\/(\d+)/);
+                const steamId = match ? match[1] : null;
+
+                if (steamId) {
+                    try {
+                        // 스팀 상점 공식 상세 API 호출 (여기에 진짜 메타점수가 들어있음!)
+                        const steamApiUrl = `https://store.steampowered.com/api/appdetails?appids=${steamId}&l=korean`;
+                        const steamRes = await fetch(steamApiUrl);
+                        const steamData = await steamRes.json();
+
+                        if (steamData[steamId]?.success) {
+                            const details = steamData[steamId].data;
+                            
+                            // 🎯 스팀이 보관중인 메타크리틱 점수가 있다면 RAWG의 빈자리 채우기!
+                            if (details.metacritic && details.metacritic.score) {
+                                game.metacritic = details.metacritic.score;
+                            }
                         }
+                    } catch (e) {
+                        // 스팀 통신 에러 발생 시 패스
                     }
-                } catch (e) {
-                    // 크롤링 실패 시 조용히 넘어감
                 }
             }
             return game;
         }));
 
-        // CORS 에러 방지 헤더 설정 후 브라우저로 배달
-        response.setHeader('Access-Control-Allow-Origin', '*');
-        return response.status(200).json({ results: updatedGames });
+        return res.status(200).json({ results: updatedGames });
 
     } catch (error) {
-        return response.status(500).json({ error: error.message });
+        return res.status(500).json({ error: error.message });
     }
-}
+};
