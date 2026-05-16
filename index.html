@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GOTY AAA Game Lounge</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -18,14 +17,12 @@
     </div>
 
     <script>
-        // 🎯 1. '플레이' 단어를 제외하고 깔끔하게 한글 매핑 수정
-        function translateTagName(slug) {
-            const mapper = {
-                'singleplayer': '싱글',
-                'co-op': '협동',
-                'multiplayer': '멀티'
-            };
-            return mapper[slug] || '싱글';
+        // 영문 태그를 안전하게 한글로 치환
+        function getTagText(slug) {
+            if (slug === 'singleplayer') return '싱글';
+            if (slug === 'co-op') return '협동';
+            if (slug === 'multiplayer') return '멀티';
+            return '싱글';
         }
 
         async function fetchGames() {
@@ -39,41 +36,93 @@
                     return;
                 }
 
-                grid.innerHTML = '';
+                grid.innerHTML = ''; // 로딩 문구 삭제
 
                 data.results.forEach(game => {
                     const card = document.createElement('div');
                     card.className = 'card';
 
-                    const scoreClass = game.metacritic === 'TBD' ? 'score tbd' : 'score';
+                    // 메타크리틱 점수 스타일 예외 처리
+                    const isTbd = game.metacritic === 'TBD';
+                    const scoreClass = isTbd ? 'score tbd' : 'score';
 
-                    const tagsHtml = game.tags && game.tags.length > 0 
-                        ? game.tags.map(tag => `<span class="badge ${tag.slug}">${translateTagName(tag.slug)}</span>`).join('')
-                        : '<span class="badge singleplayer">싱글</span>';
-
+                    // 플랫폼 이름 추출
                     const platformNames = game.parent_platforms 
                         ? game.parent_platforms.map(p => p.platform.name).join(', ')
                         : 'PC, Console';
 
+                    // 외부 링크 인코딩
                     const encodedName = encodeURIComponent(game.name);
-                    const steamUrl = `https://store.steampowered.com/search/?term=${encodedName}`;
-                    const youtubeUrl = `https://www.youtube.com/results?search_query=${encodedName}+official+trailer`;
-                    const namuUrl = `https://namu.wiki/w/${encodedName}`;
 
-                    card.innerHTML = `
-                        <div>
-                            <img class="card-img" src="${game.background_image || 'https://via.placeholder.com/300x180'}" alt="${game.name}">
-                            <div class="card-content">
-                                <div class="card-title" title="${game.name}">${game.name}</div>
-                                <div class="platforms"><i class="fa-solid fa-gamepad"></i> ${platformNames}</div>
-                                <div class="meta-info">
-                                    <span class="released">${game.released || '출시일 미정'}</span>
-                                    <span class="${scoreClass}">${game.metacritic}</span>
-                                </div>
-                                <div class="tag-container">
-                                    ${tagsHtml}
-                                </div>
-                            </div>
-                        </div>
-                        <div class="card-links">
-                            <a href="${steamUrl}" target="_blank" class="icon-link steam" title="스팀 페이지"><i class="fa-brands
+                    // 🎯 안전하게 노드를 하나씩 생성 (CSP 오류 원천 차단 방식)
+                    const wrapper = document.createElement('div');
+                    
+                    const img = document.createElement('img');
+                    img.className = 'card-img';
+                    img.src = game.background_image || 'https://via.placeholder.com/300x180';
+                    img.alt = game.name;
+                    wrapper.appendChild(img);
+
+                    const content = document.createElement('div');
+                    content.className = 'card-content';
+
+                    const title = document.createElement('div');
+                    title.className = 'card-title';
+                    title.textContent = game.name;
+                    content.appendChild(title);
+
+                    const platforms = document.createElement('div');
+                    platforms.className = 'platforms';
+                    platforms.innerHTML = `<i class="fa-solid fa-gamepad"></i> ${platformNames}`;
+                    content.appendChild(platforms);
+
+                    const metaInfo = document.createElement('div');
+                    metaInfo.className = 'meta-info';
+                    metaInfo.innerHTML = `
+                        <span class="released">${game.released || '출시일 미정'}</span>
+                        <span class="${scoreClass}">${game.metacritic}</span>
+                    `;
+                    content.appendChild(metaInfo);
+
+                    const tagContainer = document.createElement('div');
+                    tagContainer.className = 'tag-container';
+                    if (game.tags && game.tags.length > 0) {
+                        game.tags.forEach(tag => {
+                            const badge = document.createElement('span');
+                            badge.className = `badge ${tag.slug}`;
+                            badge.textContent = getTagText(tag.slug);
+                            tagContainer.appendChild(badge);
+                        });
+                    } else {
+                        const badge = document.createElement('span');
+                        badge.className = 'badge singleplayer';
+                        badge.textContent = '싱글';
+                        tagContainer.appendChild(badge);
+                    }
+                    content.appendChild(tagContainer);
+                    wrapper.appendChild(content);
+                    card.appendChild(wrapper);
+
+                    // 링크 영역 추가
+                    const cardLinks = document.createElement('div');
+                    cardLinks.className = 'card-links';
+                    cardLinks.innerHTML = `
+                        <a href="https://store.steampowered.com/search/?term=${encodedName}" target="_blank" class="icon-link steam" title="스팀"><i class="fa-brands fa-steam"></i></a>
+                        <a href="https://www.youtube.com/results?search_query=${encodedName}+official+trailer" target="_blank" class="icon-link youtube" title="유튜브"><i class="fa-brands fa-youtube"></i></a>
+                        <a href="https://namu.wiki/w/${encodedName}" target="_blank" class="icon-link namu" title="나무위키"><i class="fa-solid fa-book-open"></i></a>
+                    `;
+                    card.appendChild(cardLinks);
+
+                    grid.appendChild(card);
+                });
+
+            } catch (error) {
+                console.error(error);
+                grid.innerHTML = '<div class="loading">데이터를 가져오는 중 오류가 발생했습니다.</div>';
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', fetchGames);
+    </script>
+</body>
+</html>
