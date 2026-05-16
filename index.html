@@ -34,11 +34,39 @@
             }).join(' ');
         }
 
+// API 데이터 가져오기 (인기도 중심 정렬 및 필터 강화)
         async function fetchGames() {
             if (API_KEY === 'YOUR_API_KEY_HERE') {
-                document.getElementById('gameGrid').innerHTML = `<div class="col-span-full text-center py-20 text-red-500 font-bold">코드 상단의 'YOUR_API_KEY_HERE' 부분을 실제 API 키로 바꿔주세요!</div>`;
+                document.getElementById('gameGrid').innerHTML = `<div class="col-span-full text-center py-20 text-red-500 font-bold">API 키를 입력해주세요!</div>`;
                 return;
             }
+
+            try {
+                const now = new Date();
+                const fromDate = new Date(new Date().setFullYear(now.getFullYear() - 1)).toISOString().split('T')[0];
+                const toDate = new Date(new Date().setFullYear(now.getFullYear() + 1)).toISOString().split('T')[0];
+
+                // 1. ordering을 -added (인기도순)으로 변경해서 대작들을 우선 배치
+                const url = `https://api.rawg.io/api/games?key=${API_KEY}&dates=${fromDate},${toDate}&ordering=-added&page_size=50`;
+                const response = await fetch(url);
+                const data = await response.json();
+
+                // 2. 붉은사막이나 화제작을 살리기 위한 트리플 조건 필터링
+                allFetchedGames = data.results.filter(game => {
+                    const isHighScore = game.metacritic >= 75;    // 명작 커트라인 (75점으로 완화)
+                    const isPopular = game.added >= 2000;          // 점수 낮아도 유저들이 많이 등록한 화제작
+                    const isUpcoming = game.metacritic === null;   // 아직 출시 전인 기대작 (붉은사막 등)
+
+                    return isHighScore || isPopular || isUpcoming;
+                });
+
+                updateView();
+                document.getElementById('status').innerText = `● LIVE: 인기도 기반 AAA 데이터 동기화 완료`;
+            } catch (err) {
+                console.error(err);
+                document.getElementById('status').innerText = `● 에러 발생: ${err.message}`;
+            }
+        }
 
             try {
                 // [자동화] 시스템의 오늘 날짜를 YYYY-MM-DD 형식으로 가져오기
@@ -88,6 +116,7 @@
                             <div class="flex flex-wrap gap-1 mb-4">${platformHtml}</div>
                             
                             <p class="text-gray-500 text-sm mb-6 flex items-center gap-2"><i data-lucide="calendar" class="w-4 h-4"></i> ${game.released}</p>
+                                    <p class="text-gray-500 text-xs mt-1">🔥 ${game.added.toLocaleString()} 관심 등록</p>
                             
                             <div class="grid grid-cols-3 gap-3">
                                 <a href="${steamLink}" target="_blank" class="flex flex-col items-center justify-center gap-2 bg-[#171a21] hover:bg-blue-600/20 py-3 rounded-2xl transition border border-white/5">
